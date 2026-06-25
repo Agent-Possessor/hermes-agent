@@ -206,6 +206,13 @@ HERMES_OVERLAYS: Dict[str, HermesOverlay] = {
         transport="bedrock_converse",
         auth_type="aws_sdk",
     ),
+    "excitech-gateway": HermesOverlay(
+        transport="openai_chat",
+        is_aggregator=True,
+        extra_env_vars=("EXCITECH_GATEWAY_API_KEY",),
+        base_url_override="https://api-ai-kita.excitech.id/v1/openai",
+        base_url_env_var="EXCITECH_GATEWAY_BASE_URL",
+    ),
 }
 
 
@@ -338,6 +345,12 @@ ALIASES: Dict[str, str] = {
     "gmi-cloud": "gmi",
     "gmicloud": "gmi",
 
+    # excitech-gateway
+    "excitech": "excitech-gateway",
+    "ai-kita": "excitech-gateway",
+    "ai_gateway": "excitech-gateway",
+    "excitech_gateway": "excitech-gateway",
+
     # Local server aliases → virtual "local" concept (resolved via user config)
     "lmstudio": "lmstudio",
     "lm-studio": "lmstudio",
@@ -367,6 +380,7 @@ _LABEL_OVERRIDES: Dict[str, str] = {
     "bedrock": "AWS Bedrock",
     "ollama-cloud": "Ollama Cloud",
     "xai-oauth": "xAI Grok OAuth (SuperGrok / Premium+)",
+    "excitech-gateway": "Excitech AI Gateway",
 }
 
 

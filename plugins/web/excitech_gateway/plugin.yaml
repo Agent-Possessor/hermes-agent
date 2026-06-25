@@ -1,0 +1,7 @@
+name: excitech-gateway-web
+kind: backend
+version: 1.0.0
+description: "Web search and content extraction via Excitech AI Gateway (/v1/search/web + /v1/scrapper/extract-text)"
+author: Excitech
+provides_web_providers:
+  - excitech-gateway

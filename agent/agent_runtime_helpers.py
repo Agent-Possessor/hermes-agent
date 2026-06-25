@@ -1399,6 +1399,26 @@ def create_openai_client(agent, client_kwargs: dict, *, reason: str, shared: boo
                 agent._client_log_context(),
             )
             return client
+    if agent.provider == "excitech-gateway":
+        from agent.excitech_gateway_adapter import ExcitechGatewayClient
+
+        safe_kwargs = {
+            k: v
+            for k, v in client_kwargs.items()
+            if k in {"api_key", "base_url", "default_headers", "timeout", "http_client"}
+        }
+        if "http_client" not in safe_kwargs:
+            keepalive_http = agent._build_keepalive_http_client(client_kwargs.get("base_url", ""))
+            if keepalive_http is not None:
+                safe_kwargs["http_client"] = keepalive_http
+        client = ExcitechGatewayClient(**safe_kwargs)
+        _ra().logger.info(
+            "Excitech gateway client created (%s, shared=%s) %s",
+            reason,
+            shared,
+            agent._client_log_context(),
+        )
+        return client
     # Inject TCP keepalives so the kernel detects dead provider connections
     # instead of letting them sit silently in CLOSE-WAIT (#10324).  Without
     # this, a peer that drops mid-stream leaves the socket in a state where
