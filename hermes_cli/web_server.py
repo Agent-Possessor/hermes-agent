@@ -77,7 +77,7 @@ from gateway.status import (
     parse_active_agents,
     read_runtime_status,
 )
-from utils import env_var_enabled
+from utils import env_var_enabled, openai_compat_api_key_headers
 
 try:
     from fastapi import (
@@ -4291,7 +4291,7 @@ async def validate_provider_credential(body: EnvVarUpdate, request: Request):
         # ``/v1/models`` (many hosted OpenAI-compatible servers) still enumerate
         # their models instead of returning an empty list behind a 401.
         api_key = (body.api_key or "").strip()
-        headers = {"Authorization": f"Bearer {api_key}"} if api_key else None
+        headers = openai_compat_api_key_headers(value, api_key) if api_key else None
         try:
             with httpx.Client(timeout=httpx.Timeout(8.0)) as client:
                 resp = client.get(url, headers=headers)

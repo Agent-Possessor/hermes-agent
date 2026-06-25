@@ -17,7 +17,12 @@ from urllib.parse import urlparse
 import requests
 import yaml
 
-from utils import atomic_json_write, base_url_host_matches, base_url_hostname
+from utils import (
+    atomic_json_write,
+    base_url_host_matches,
+    base_url_hostname,
+    openai_compat_api_key_headers,
+)
 
 from hermes_constants import OPENROUTER_MODELS_URL
 
@@ -768,7 +773,7 @@ def fetch_endpoint_model_metadata(
     if alternate and alternate not in candidates:
         candidates.append(alternate)
 
-    headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+    headers = openai_compat_api_key_headers(normalized, api_key)
     last_error: Optional[Exception] = None
 
     if is_local_endpoint(normalized):

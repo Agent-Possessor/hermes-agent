@@ -26,7 +26,7 @@ load_hermes_dotenv(hermes_home=_env_path.parent, project_env=PROJECT_ROOT / ".en
 from hermes_cli.colors import Colors, color
 from hermes_cli.models import _HERMES_USER_AGENT
 from hermes_constants import OPENROUTER_MODELS_URL
-from utils import base_url_host_matches
+from utils import base_url_host_matches, openai_compat_api_key_headers
 
 
 _PROVIDER_ENV_HINTS = (
@@ -1854,8 +1854,8 @@ def run_doctor(args):
                 base = base.rstrip("/") + "/v1"
             url = (base.rstrip("/") + "/models") if base else default_url
             headers = {
-                "Authorization": f"Bearer {key}",
                 "User-Agent": _HERMES_USER_AGENT,
+                **openai_compat_api_key_headers(url, key),
             }
             if base_url_host_matches(base, "api.kimi.com"):
                 headers["User-Agent"] = "claude-code/0.1.0"

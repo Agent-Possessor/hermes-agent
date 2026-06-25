@@ -462,3 +462,19 @@ def base_url_host_matches(base_url: str, domain: str) -> bool:
     if not domain:
         return False
     return hostname == domain or hostname.endswith("." + domain)
+
+
+def openai_compat_api_key_headers(base_url: str, api_key: str) -> dict[str, str]:
+    """Return auth headers for OpenAI-compatible API-key endpoints.
+
+    Most OpenAI-compatible backends accept ``Authorization: Bearer <api_key>``.
+    Excitech AI Gateway is a notable exception: it authenticates tenants via
+    ``X-AI-API-Key`` and interprets Bearer tokens as JWTs. Sending a plain API
+    key as Bearer there yields ``401 invalid_jwt``.
+    """
+    key = str(api_key or "").strip()
+    if not key:
+        return {}
+    if base_url_host_matches(base_url, "api-ai-kita.excitech.id"):
+        return {"X-AI-API-Key": key}
+    return {"Authorization": f"Bearer {key}"}

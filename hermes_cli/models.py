@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any, NamedTuple, Optional
 
 from hermes_cli import __version__ as _HERMES_VERSION
+from utils import openai_compat_api_key_headers
 
 # Identify ourselves so endpoints fronted by Cloudflare's Browser Integrity
 # Check (error 1010) don't reject the default ``Python-urllib/*`` signature.
@@ -3447,7 +3448,7 @@ def probe_api_models(
         headers["x-api-key"] = api_key
         headers["anthropic-version"] = "2023-06-01"
     elif api_key:
-        headers["Authorization"] = f"Bearer {api_key}"
+        headers.update(openai_compat_api_key_headers(normalized, api_key))
     if normalized.startswith(COPILOT_BASE_URL):
         headers.update(copilot_default_headers())
 
