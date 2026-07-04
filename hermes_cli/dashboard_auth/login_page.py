@@ -72,7 +72,6 @@ _LOGIN_HTML_TEMPLATE = """\
 
   :root {{
     --background-base: #170d02;
-    --background: #170d02;
     --midground: #ffac02;
     --foreground: #ffffff;
     --hairline: color-mix(in srgb, #ffac02 18%, transparent);
@@ -84,8 +83,8 @@ _LOGIN_HTML_TEMPLATE = """\
   html, body {{
     margin: 0;
     padding: 0;
-    min-height: 100%;
-    background: var(--background-base);
+    min-height: 100vh;
+    background: #0d0802;
     color: var(--foreground);
     font-family: 'Collapse', system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     font-size: 16px;
@@ -94,38 +93,60 @@ _LOGIN_HTML_TEMPLATE = """\
     -moz-osx-font-smoothing: grayscale;
   }}
 
-  /* Subtle dot-grid backdrop — DS idiom (see `.dither` in globals.css). */
+  /* Premium glowing backdrop dots and grid */
   body {{
+    display: grid;
+    place-items: center;
+    padding: clamp(1.5rem, 6vh, 6rem) 1.25rem;
+    overflow: hidden;
+    position: relative;
     background-image:
       radial-gradient(
         ellipse at top,
-        color-mix(in srgb, var(--midground) 6%, transparent) 0%,
-        transparent 55%
+        color-mix(in srgb, var(--midground) 4%, transparent) 0%,
+        transparent 70%
       ),
       repeating-conic-gradient(
-        color-mix(in srgb, var(--midground) 4%, transparent) 0% 25%,
+        color-mix(in srgb, var(--midground) 3%, transparent) 0% 25%,
         transparent 0% 50%
       );
     background-size: auto, 3px 3px;
     background-attachment: fixed;
   }}
 
-  /* Layout: vertically center on tall screens, top-anchor on short. */
-  body {{
-    display: grid;
-    place-items: center;
-    padding: clamp(1.5rem, 6vh, 6rem) 1.25rem;
+  /* Ambient Blur Bubbles */
+  .glow {{
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(90px);
+    opacity: 0.08;
+    background: var(--midground);
+    pointer-events: none;
+    z-index: 0;
+  }}
+  .glow-1 {{
+    width: 350px;
+    height: 350px;
+    top: 5%;
+    left: 10%;
+  }}
+  .glow-2 {{
+    width: 400px;
+    height: 400px;
+    bottom: -5%;
+    right: 10%;
   }}
 
   main {{
     width: 100%;
     max-width: 26rem;
     position: relative;
-    animation: slide-up 0.6s ease-out both;
+    z-index: 2;
+    animation: slide-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
   }}
 
   @keyframes slide-up {{
-    from {{ opacity: 0; transform: translateY(6px); }}
+    from {{ opacity: 0; transform: translateY(12px); }}
     to   {{ opacity: 1; transform: translateY(0); }}
   }}
 
@@ -133,17 +154,18 @@ _LOGIN_HTML_TEMPLATE = """\
     main {{ animation: none; }}
   }}
 
-  /* Brand wordmark above the card — same uppercase + wide-tracking
-     idiom DS Buttons use. */
+  /* Brand wordmark above the card */
   .brand {{
     text-align: center;
-    margin-bottom: 1.75rem;
+    margin-bottom: 2rem;
     font-family: 'Rules Compressed', 'Collapse', sans-serif;
     font-weight: 600;
-    font-size: 1.05rem;
-    letter-spacing: 0.32em;
+    font-size: 1.1rem;
+    letter-spacing: 0.35em;
     text-transform: uppercase;
     color: var(--midground);
+    opacity: 0.95;
+    text-shadow: 0 0 20px rgba(255, 172, 2, 0.2);
   }}
   .brand .dot {{
     display: inline-block;
@@ -152,45 +174,48 @@ _LOGIN_HTML_TEMPLATE = """\
     background: var(--midground);
     margin: 0 0.55em 0.18em;
     vertical-align: middle;
-    border-radius: 1px;
+    border-radius: 50%;
+    box-shadow: 0 0 8px var(--midground);
   }}
 
+  /* Glassmorphism Card Design */
   .card {{
     position: relative;
-    padding: 2.25rem 2rem 2rem;
-    background: color-mix(in srgb, #ffffff 2%, var(--background-base));
-    border: 1px solid var(--hairline);
-    /* Hairline highlight + bevel shadow — matches DS Button SHADOW_DEFAULT
-       (`inset -1px -1px 0 #00000080, inset 1px 1px 0 #ffffff80`) at panel scale. */
+    padding: 2.75rem 2.25rem;
+    background: rgba(23, 13, 2, 0.45);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 172, 2, 0.18);
+    border-radius: 12px;
     box-shadow:
-      inset 1px 1px 0 0 color-mix(in srgb, #ffffff 5%, transparent),
-      inset -1px -1px 0 0 rgba(0, 0, 0, 0.4),
-      0 24px 60px -20px rgba(0, 0, 0, 0.6);
+      0 12px 40px rgba(0, 0, 0, 0.5),
+      inset 1px 1px 0 0 rgba(255, 255, 255, 0.05);
   }}
 
   h1 {{
-    margin: 0 0 0.4rem;
+    margin: 0 0 0.5rem;
     font-family: 'Rules Compressed', 'Collapse', sans-serif;
     font-weight: 600;
-    font-size: 1.85rem;
-    letter-spacing: 0.05em;
+    font-size: 1.9rem;
+    letter-spacing: 0.04em;
     text-transform: uppercase;
     color: var(--foreground);
+    text-shadow: 0 2px 10px rgba(0,0,0,0.3);
   }}
 
   .subtitle {{
-    margin: 0 0 1.75rem;
-    color: color-mix(in srgb, var(--foreground) 65%, transparent);
-    font-size: 0.95rem;
+    margin: 0 0 2rem;
+    color: color-mix(in srgb, var(--foreground) 60%, transparent);
+    font-size: 0.92rem;
+    line-height: 1.4;
   }}
 
   .provider-list {{
     display: grid;
-    gap: 0.75rem;
+    gap: 0.85rem;
   }}
 
-  /* Provider button — mirrors DS Button (default variant):
-     amber surface, dark text, uppercase + wide tracking, inset bevel. */
+  /* Premium Button Style */
   .provider-btn {{
     display: block;
     width: 100%;
@@ -202,69 +227,77 @@ _LOGIN_HTML_TEMPLATE = """\
     font-family: 'Collapse', sans-serif;
     font-weight: 700;
     font-size: 0.78rem;
-    letter-spacing: 0.2em;
+    letter-spacing: 0.22em;
     text-transform: uppercase;
     text-decoration: none;
     border: 0;
-    border-radius: 0;  /* DS Button is squared — no rounded corners. */
+    border-radius: 6px;
     cursor: pointer;
     box-shadow:
-      inset 1px 1px 0 0 rgba(255, 255, 255, 0.5),
-      inset -1px -1px 0 0 rgba(0, 0, 0, 0.5);
-    transition: filter 0.12s ease-out;
+      inset 1px 1px 0 0 rgba(255, 255, 255, 0.25),
+      inset -1px -1px 0 0 rgba(0, 0, 0, 0.15);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   }}
   .provider-btn:hover {{
-    filter: brightness(1.08);
+    filter: brightness(1.1);
+    box-shadow:
+      0 0 16px rgba(255, 172, 2, 0.3),
+      inset 1px 1px 0 0 rgba(255, 255, 255, 0.3);
+    transform: translateY(-1px);
   }}
   .provider-btn:active {{
-    /* DS Button uses `active:invert` on the default surface. */
     filter: invert(1);
+    transform: translateY(0);
   }}
   .provider-btn:focus-visible {{
     outline: 2px solid var(--midground);
     outline-offset: 3px;
   }}
 
-  /* Password provider form — same visual language as the OAuth buttons:
-     squared inputs, hairline borders, amber focus ring. */
+  /* Password provider form */
   .provider-form {{
     display: grid;
-    gap: 0.75rem;
+    gap: 0.85rem;
     text-align: left;
   }}
   .form-title {{
     font-family: 'Rules Compressed', 'Collapse', sans-serif;
     font-weight: 600;
-    font-size: 0.72rem;
-    letter-spacing: 0.18em;
+    font-size: 0.75rem;
+    letter-spacing: 0.2em;
     text-transform: uppercase;
     color: color-mix(in srgb, var(--foreground) 70%, transparent);
+    border-bottom: 1px solid rgba(255, 172, 2, 0.15);
+    padding-bottom: 0.5rem;
+    margin-bottom: 0.25rem;
   }}
   .field {{
     display: grid;
-    gap: 0.3rem;
+    gap: 0.35rem;
   }}
   .field-label {{
     font-size: 0.72rem;
-    letter-spacing: 0.12em;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
-    color: color-mix(in srgb, var(--foreground) 55%, transparent);
+    color: color-mix(in srgb, var(--foreground) 50%, transparent);
   }}
   .field-input {{
     width: 100%;
     box-sizing: border-box;
-    padding: 0.7rem 0.8rem;
-    background: color-mix(in srgb, #000000 25%, var(--background-base));
+    padding: 0.75rem 0.9rem;
+    background: rgba(0, 0, 0, 0.35);
     color: var(--foreground);
-    border: 1px solid var(--hairline-strong);
-    border-radius: 0;
+    border: 1px solid rgba(255, 172, 2, 0.15);
+    border-radius: 6px;
     font-family: 'Collapse', sans-serif;
     font-size: 0.95rem;
+    transition: all 0.2s ease;
   }}
   .field-input:focus-visible {{
     outline: none;
     border-color: var(--midground);
-    box-shadow: 0 0 0 1px var(--midground);
+    box-shadow: 0 0 0 2px rgba(255, 172, 2, 0.25);
+    background: rgba(0, 0, 0, 0.5);
   }}
   .form-error {{
     color: #ff6b6b;
@@ -272,15 +305,15 @@ _LOGIN_HTML_TEMPLATE = """\
     letter-spacing: 0.02em;
   }}
   .provider-form .provider-btn {{
-    margin-top: 0.25rem;
+    margin-top: 0.5rem;
   }}
 
   footer {{
-    margin-top: 1.75rem;
+    margin-top: 2rem;
     text-align: center;
-    color: color-mix(in srgb, var(--foreground) 45%, transparent);
-    font-size: 0.75rem;
-    letter-spacing: 0.1em;
+    color: color-mix(in srgb, var(--foreground) 40%, transparent);
+    font-size: 0.72rem;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
     line-height: 1.7;
   }}
@@ -288,12 +321,12 @@ _LOGIN_HTML_TEMPLATE = """\
     display: inline-block;
     width: 1.5rem;
     height: 1px;
-    background: var(--hairline-strong);
+    background: rgba(255, 172, 2, 0.15);
     vertical-align: middle;
     margin: 0 0.6em 0.2em;
   }}
 
-  /* Selection — DS uses midground bg + background text. */
+  /* Selection */
   ::selection {{
     background: var(--midground);
     color: var(--background-base);
@@ -301,6 +334,8 @@ _LOGIN_HTML_TEMPLATE = """\
 </style>
 </head>
 <body>
+<div class="glow glow-1"></div>
+<div class="glow glow-2"></div>
 <main>
   <div class="brand">Nous<span class="dot"></span>Research</div>
   <div class="card">
