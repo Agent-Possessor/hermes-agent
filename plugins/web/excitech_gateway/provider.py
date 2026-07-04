@@ -10,6 +10,10 @@ Endpoints used:
 Auth env var:
     EXCITECH_GATEWAY_API_KEY=ak_...
 
+Base URL override (optional, gateway root only — same var used by the LLM
+provider plugin; each plugin appends its own path suffix in code):
+    EXCITECH_GATEWAY_API_URL=https://api-ai-kita.excitech.id
+
 Config (in ~/.hermes/config.yaml):
     web:
       search_backend: "excitech-gateway"
@@ -28,10 +32,20 @@ from agent.web_search_provider import WebSearchProvider
 
 logger = logging.getLogger(__name__)
 
-_BASE_URL = "https://api-ai-kita.excitech.id"
-_SEARCH_ENDPOINT = f"{_BASE_URL}/v1/search/web"
-_EXTRACT_ENDPOINT = f"{_BASE_URL}/v1/scrapper/extract-text"
+_DEFAULT_GATEWAY_ROOT = "https://api-ai-kita.excitech.id"
 _TIMEOUT = 30.0
+
+
+def _gateway_root() -> str:
+    return os.getenv("EXCITECH_GATEWAY_API_URL", _DEFAULT_GATEWAY_ROOT).strip().rstrip("/")
+
+
+def _search_endpoint() -> str:
+    return f"{_gateway_root()}/v1/search/web"
+
+
+def _extract_endpoint() -> str:
+    return f"{_gateway_root()}/v1/scrapper/extract-text"
 
 
 def _api_key() -> str:
@@ -86,7 +100,7 @@ class ExcitechGatewayWebSearchProvider(WebSearchProvider):
 
         try:
             resp = httpx.post(
-                _SEARCH_ENDPOINT,
+                _search_endpoint(),
                 json=payload,
                 headers={**_auth_headers(), "Content-Type": "application/json"},
                 timeout=_TIMEOUT,
@@ -133,7 +147,7 @@ class ExcitechGatewayWebSearchProvider(WebSearchProvider):
 
             try:
                 resp = httpx.post(
-                    _EXTRACT_ENDPOINT,
+                    _extract_endpoint(),
                     json={"url": url, "max_chars": kwargs.get("max_chars", 8000)},
                     headers={**_auth_headers(), "Content-Type": "application/json"},
                     timeout=_TIMEOUT,
@@ -167,7 +181,7 @@ class ExcitechGatewayWebSearchProvider(WebSearchProvider):
                 {
                     "key": "EXCITECH_GATEWAY_API_KEY",
                     "prompt": "Excitech Gateway API key (ak_...)",
-                    "url": "https://api-ai-kita.excitech.id/",
+                    "url": f"{_gateway_root()}/",
                 },
             ],
         }

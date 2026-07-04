@@ -883,6 +883,38 @@ function rememberLog(chunk) {
   scheduleDesktopLogFlush()
 }
 
+function summarizeConnectionForLog(connection) {
+  if (!connection || typeof connection !== 'object') {
+    return 'connection=<null>'
+  }
+
+  const baseUrl = String(connection.baseUrl || '').trim()
+  const mode = String(connection.mode || '').trim() || 'unknown'
+  const authMode = String(connection.authMode || '').trim() || 'unknown'
+  const source = String(connection.source || '').trim() || 'unknown'
+  const profile = String(connection.profile || '').trim() || primaryProfileKey()
+  const tokenKind = authMode === 'oauth' ? 'cookie-session' : connection.token ? 'token-present' : 'token-missing'
+
+  return `profile=${profile} mode=${mode} authMode=${authMode} source=${source} baseUrl=${baseUrl || '<empty>'} token=${tokenKind}`
+}
+
+function buildLocalDesktopDashboardEnv(extraEnv = {}) {
+  const env = {
+    ...process.env,
+    ...extraEnv
+  }
+
+  // Desktop-local backends always use the ephemeral session token header.
+  // If the parent shell exported dashboard basic-auth env vars, Hermes would
+  // force auth_required=true even on 127.0.0.1 and expect a login cookie,
+  // which breaks the desktop with 401 no_cookie responses.
+  delete env.HERMES_DASHBOARD_BASIC_AUTH_USERNAME
+  delete env.HERMES_DASHBOARD_BASIC_AUTH_PASSWORD
+  delete env.HERMES_DASHBOARD_BASIC_AUTH_SECRET
+
+  return env
+}
+
 function openExternalUrl(rawUrl) {
   const raw = String(rawUrl || '').trim()
   if (!raw) return false
@@ -4895,13 +4927,17 @@ async function ensureBackend(profile) {
   const key = profile && String(profile).trim() ? String(profile).trim() : primaryProfileKey()
 
   if (key === primaryProfileKey()) {
-    return startHermes()
+    const connection = await startHermes()
+    rememberLog(`[debug] ensureBackend(primary) -> ${summarizeConnectionForLog(connection)}`)
+    return connection
   }
 
   const existing = backendPool.get(key)
   if (existing) {
     existing.lastActiveAt = Date.now()
-    return existing.connectionPromise
+    const connection = await existing.connectionPromise
+    rememberLog(`[debug] ensureBackend(pool:${key}) cached -> ${summarizeConnectionForLog(connection)}`)
+    return connection
   }
 
   evictLruPoolBackends(POOL_MAX_BACKENDS - 1)
@@ -4913,7 +4949,9 @@ async function ensureBackend(profile) {
   })
   backendPool.set(key, entry)
   startPoolIdleReaper()
-  return entry.connectionPromise
+  const connection = await entry.connectionPromise
+  rememberLog(`[debug] ensureBackend(pool:${key}) spawned -> ${summarizeConnectionForLog(connection)}`)
+  return connection
 }
 
 // Mark a pool profile as recently used so the idle reaper spares it. The
@@ -5000,8 +5038,7 @@ async function spawnPoolBackend(profile, entry) {
     backend.args,
     hiddenWindowsChildOptions({
       cwd: hermesCwd,
-      env: {
-        ...process.env,
+      env: buildLocalDesktopDashboardEnv({
         HERMES_HOME,
         ...backend.env,
         // Pin the gateway's tool/terminal cwd to the same directory we chose for
@@ -5013,7 +5050,7 @@ async function spawnPoolBackend(profile, entry) {
         // scheduler tick loop (the gateway isn't running under the app).
         HERMES_DESKTOP: '1',
         HERMES_WEB_DIST: webDist
-      },
+      }),
       shell: backend.shell,
       stdio: ['ignore', 'pipe', 'pipe']
     })
@@ -5220,8 +5257,7 @@ async function startHermes() {
       backend.args,
       hiddenWindowsChildOptions({
         cwd: hermesCwd,
-        env: {
-          ...process.env,
+        env: buildLocalDesktopDashboardEnv({
           // Explicitly pin HERMES_HOME for the child so Python's get_hermes_home()
           // resolves to the SAME location our resolveHermesHome() picked. Without
           // this pin, Python falls back to ~/.hermes on every platform — fine on
@@ -5238,7 +5274,7 @@ async function startHermes() {
           // scheduler tick loop (the gateway isn't running under the app).
           HERMES_DESKTOP: '1',
           HERMES_WEB_DIST: webDist
-        },
+        }),
         shell: backend.shell,
         stdio: ['ignore', 'pipe', 'pipe']
       })
@@ -6159,6 +6195,9 @@ ipcMain.handle('hermes:api', async (_event, request) => {
     profileRemoteOverride: profileHasRemoteOverride(profile)
   })
   const url = `${connection.baseUrl}${requestPath}`
+  rememberLog(
+    `[debug] hermes:api path=${requestPath} method=${String(request?.method || 'GET').toUpperCase()} via ${summarizeConnectionForLog(connection)}`
+  )
   // OAuth gateways authenticate REST via the HttpOnly session cookie held in
   // the OAuth partition — route through Electron's net stack bound to that
   // session so the cookie attaches automatically. Token/local modes keep using

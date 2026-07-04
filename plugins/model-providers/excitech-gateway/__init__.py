@@ -4,7 +4,10 @@ Routes all LLM calls through the internal Excitech AI Gateway
 (https://api-ai-kita.excitech.id/) which handles provider routing,
 fallback logic, and quota enforcement internally.
 
-The gateway exposes an OpenAI-compatible endpoint at /v1/openai.
+The gateway exposes two integration styles:
+  1. OpenAI-compatible proxy at /v1/openai
+  2. Orchestrated AI chat at /v1/ai/chat
+
 Auth uses X-AI-API-Key header — injected automatically via default_headers
 so hermes does not need any special transport configuration.
 
@@ -17,10 +20,16 @@ NVIDIA NIM, etc.) based on the model alias:
 Auth env var:
     EXCITECH_GATEWAY_API_KEY=ak_...
 
+Base URL override (optional, gateway root only — /v1/openai is appended in code):
+    EXCITECH_GATEWAY_API_URL=https://api-ai-kita.excitech.id
+
 Config (in ~/.hermes/config.yaml):
     model:
       provider: excitech-gateway
       default: general-main
+      excitech_gateway_mode: openai-proxy  # or ai-chat
+      excitech_gateway_domain: general
+      excitech_gateway_agent: assistant
 """
 
 from __future__ import annotations
@@ -35,6 +44,16 @@ from providers.base import ProviderProfile, _profile_user_agent
 
 logger = logging.getLogger(__name__)
 
+_DEFAULT_GATEWAY_ROOT = "https://api-ai-kita.excitech.id"
+
+
+def _gateway_root() -> str:
+    return os.getenv("EXCITECH_GATEWAY_API_URL", _DEFAULT_GATEWAY_ROOT).strip().rstrip("/")
+
+
+def _gateway_base_url() -> str:
+    return f"{_gateway_root()}/v1/openai"
+
 
 class ExcitechGatewayProfile(ProviderProfile):
     """ProviderProfile that injects X-AI-API-Key for both model listing and chat calls."""
@@ -48,6 +67,16 @@ class ExcitechGatewayProfile(ProviderProfile):
 
     @default_headers.setter
     def default_headers(self, value) -> None:
+        pass  # intentionally ignored — always derived from env
+
+    # Same deferred-read trick as default_headers: base_url is read at
+    # request time so EXCITECH_GATEWAY_API_URL can override it.
+    @property
+    def base_url(self) -> str:
+        return _gateway_base_url()
+
+    @base_url.setter
+    def base_url(self, value) -> None:
         pass  # intentionally ignored — always derived from env
 
     def fetch_models(
@@ -79,9 +108,9 @@ excitech_gateway = ExcitechGatewayProfile(
     aliases=("excitech", "ai-kita", "ai_gateway"),
     env_vars=("EXCITECH_GATEWAY_API_KEY",),
     display_name="Excitech AI Gateway",
-    description="Internal gateway — auto-routes to best backend, no model config needed",
-    signup_url="https://api-ai-kita.excitech.id/",
-    base_url="https://api-ai-kita.excitech.id/v1/openai",
+    description="Internal gateway — OpenAI proxy or AI chat orchestration with internal routing",
+    signup_url=f"{_gateway_root()}/",
+    base_url=_gateway_base_url(),
     supports_vision=True,
     fallback_models=(
         "general-main",    # auto-routing (default)

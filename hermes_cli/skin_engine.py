@@ -642,6 +642,140 @@ _BUILTIN_SKINS: Dict[str, Dict[str, Any]] = {
 [#F29C38]⠀⠀⠀⠀⠀⠀⠀⣼⡟⠀⠀⢻⣧⠀⠀⠀⠀⠀⠀⠀⠀[/]
 [dim #7A3511]⠀⠀⠀⠀⠀⠀⠀tail flame lit⠀⠀⠀⠀⠀⠀⠀⠀[/]""",
     },
+    "nexa": {
+        "name": "nexa",
+        "description": "Nexa theme — gold accents on a dark grid canvas",
+        "colors": {
+            "banner_border": "#FFD83B",
+            "banner_title": "#FFD83B",
+            "banner_accent": "#FFD83B",
+            "banner_dim": "#717d8a",
+            "banner_text": "#ffffff",
+            "ui_accent": "#FFD83B",
+            "ui_label": "#00c5a2",
+            "ui_ok": "#00c5a2",
+            "ui_error": "#ef5350",
+            "ui_warn": "#FFD83B",
+            "prompt": "#ffffff",
+            "input_rule": "#FFD83B",
+            "response_border": "#FFD83B",
+            "session_label": "#FFD83B",
+            "session_border": "#717d8a",
+            "status_bar_bg": "#11161d",
+            "status_bar_text": "#ffffff",
+            "status_bar_strong": "#FFD83B",
+            "status_bar_dim": "#717d8a",
+            "status_bar_good": "#00c5a2",
+            "status_bar_warn": "#FFD83B",
+            "status_bar_bad": "#FF8C00",
+            "status_bar_critical": "#ef5350",
+            "selection_bg": "#333355",
+            "completion_menu_bg": "#11161d",
+            "completion_menu_current_bg": "#333355",
+            "completion_menu_meta_bg": "#11161d",
+            "completion_menu_meta_current_bg": "#333355",
+        },
+        "spinner": {
+            "waiting_faces": ["(❖)", "(⬖)", "(⬗)", "(⬥)", "(⬦)"],
+            "thinking_faces": ["(❖)", "(⬖)", "(⬗)", "(⬥)", "(⬦)"],
+            "thinking_verbs": [
+                "swapping", "exchanging", "routing path", "fetching pairs",
+                "balancing pools", "matching orders", "calculating slippage",
+            ],
+            "wings": [
+                ["⟪❖", "❖⟫"],
+                ["⟪◇", "◇⟫"],
+            ],
+        },
+        "branding": {
+            "agent_name": "Nexa Agent",
+            "welcome": "Welcome to Nexa Agent! Type your message or /help for commands.",
+            "goodbye": "Goodbye! ❖ NEXA",
+            "response_label": " ❖ Nexa ",
+            "prompt_symbol": "❖",
+            "help_header": "(❖) Available Commands",
+        },
+        "tool_prefix": "┋",
+        "banner_logo": """[bold #FFD83B]███╗   ██╗███████╗██╗  ██╗ █████╗ [/]
+[bold #FFE56F]████╗  ██║██╔════╝╚██╗██╔╝██╔══██╗[/]
+[bold #FFD83B]██╔██╗ ██║█████╗   ╚███╔╝ ███████║[/]
+[bold #FFE56F]██║╚██╗██║██╔══╝   ██╔██╗ ██╔══██║[/]
+[bold #FFD83B]██║ ╚████║███████╗██╔╝ ██╗██║  ██║[/]
+[bold #FFE56F]╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝[/]""",
+        "banner_hero": """[#FFD83B]           ▄███████▄[/]
+[#FFD83B]           █   █   █[/]
+[#FFE56F]           ▀█  █  █▀[/]
+[#FFE56F]            ▀█ █ █▀[/]
+[#FFD83B]             ▀███▀[/]
+[dim #717d8a]        nexa network[/]""",
+    },
+    "nexa-light": {
+        "name": "nexa-light",
+        "description": "Nexa Light theme — dark blue accents on a bright canvas",
+        "colors": {
+            "banner_border": "#00284b",
+            "banner_title": "#00284b",
+            "banner_accent": "#00284b",
+            "banner_dim": "#64748b",
+            "banner_text": "#111827",
+            "ui_accent": "#00284b",
+            "ui_label": "#00c5a2",
+            "ui_ok": "#00c5a2",
+            "ui_error": "#ef5350",
+            "ui_warn": "#00284b",
+            "prompt": "#111827",
+            "input_rule": "#00284b",
+            "response_border": "#00284b",
+            "session_label": "#00284b",
+            "session_border": "#64748b",
+            "status_bar_bg": "#e5edf8",
+            "status_bar_text": "#111827",
+            "status_bar_strong": "#00284b",
+            "status_bar_dim": "#64748b",
+            "status_bar_good": "#00c5a2",
+            "status_bar_warn": "#00284b",
+            "status_bar_bad": "#ef5350",
+            "status_bar_critical": "#ef5350",
+            "selection_bg": "#dbeafe",
+            "completion_menu_bg": "#f8fafc",
+            "completion_menu_current_bg": "#dbeafe",
+            "completion_menu_meta_bg": "#eef2ff",
+            "completion_menu_meta_current_bg": "#bfdbfe",
+        },
+        "spinner": {
+            "waiting_faces": ["(❖)", "(⬖)", "(⬗)", "(⬥)", "(⬦)"],
+            "thinking_faces": ["(❖)", "(⬖)", "(⬗)", "(⬥)", "(⬦)"],
+            "thinking_verbs": [
+                "swapping", "exchanging", "routing path", "fetching pairs",
+                "balancing pools", "matching orders", "calculating slippage",
+            ],
+            "wings": [
+                ["⟪❖", "❖⟫"],
+                ["⟪◇", "◇⟫"],
+            ],
+        },
+        "branding": {
+            "agent_name": "Nexa Agent",
+            "welcome": "Welcome to Nexa Agent! Type your message or /help for commands.",
+            "goodbye": "Goodbye! ❖ NEXA",
+            "response_label": " ❖ Nexa ",
+            "prompt_symbol": "❖",
+            "help_header": "(❖) Available Commands",
+        },
+        "tool_prefix": "┋",
+        "banner_logo": """[bold #00284b]███╗   ██╗███████╗██╗  ██╗ █████╗ [/]
+[bold #003a6c]████╗  ██║██╔════╝╚██╗██╔╝██╔══██╗[/]
+[bold #00284b]██╔██╗ ██║█████╗   ╚███╔╝ ███████║[/]
+[bold #003a6c]██║╚██╗██║██╔══╝   ██╔██╗ ██╔══██║[/]
+[bold #00284b]██║ ╚████║███████╗██╔╝ ██╗██║  ██║[/]
+[bold #003a6c]╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝[/]""",
+        "banner_hero": """[#00284b]           ▄███████▄[/]
+[#00284b]           █   █   █[/]
+[#003a6c]           ▀█  █  █▀[/]
+[#003a6c]            ▀█ █ █▀[/]
+[#00284b]             ▀███▀[/]
+[dim #64748b]        nexa network[/]""",
+    },
 }
 
 

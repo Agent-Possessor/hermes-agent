@@ -733,6 +733,11 @@ export interface ModelAssignmentRequest {
   /** OpenAI-compatible endpoint URL. Only honored for custom/local providers
    *  on the main slot — wires a self-hosted endpoint into runtime resolution. */
   base_url?: string
+  /** Excitech gateway transport mode. `/v1/ai/chat` is an orchestration
+   *  transport, not a separate model entry. */
+  excitech_gateway_mode?: string
+  excitech_gateway_domain?: string
+  excitech_gateway_agent?: string
   model: string
   provider: string
   scope: 'main' | 'auxiliary'

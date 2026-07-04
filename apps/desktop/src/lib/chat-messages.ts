@@ -121,6 +121,11 @@ export function chatMessageText(message: ChatMessage): string {
 const ATTACHED_CONTEXT_MARKER_RE = /(?:^|\n)--- Attached Context ---\s*\n/
 const CONTEXT_WARNINGS_MARKER_RE = /(?:^|\n)--- Context Warnings ---[\s\S]*$/
 const CONTEXT_REF_RE = /@(file|folder|url|image|tool|terminal):(?:"[^"\n]+"|'[^'\n]+'|`[^`\n]+`|\S+)/g
+const DSML_TAG_STEM = '(?:[|｜]\\s*){2}DSML(?:\\s*[|｜]){2}'
+const DSML_TOOL_CALLS_BLOCK_RE = new RegExp(
+  `<\\s*${DSML_TAG_STEM}\\s*tool_calls\\s*>[\\s\\S]*?<\\/\\s*${DSML_TAG_STEM}\\s*tool_calls\\s*>`,
+  'gi'
+)
 
 function textFromUnknown(value: unknown, depth = 0): string {
   if (typeof value === 'string') {
@@ -160,19 +165,23 @@ function textFromUnknown(value: unknown, depth = 0): string {
 
 function displayContentForMessage(role: SessionMessage['role'], content: unknown): string {
   const textContent = textFromUnknown(content)
+  const cleanedAssistantContent =
+    role === 'assistant'
+      ? textContent.replace(DSML_TOOL_CALLS_BLOCK_RE, '').replace(/\n{3,}/g, '\n\n').trim()
+      : textContent
 
   if (role !== 'user') {
-    return textContent
+    return cleanedAssistantContent
   }
 
-  const marker = textContent.match(ATTACHED_CONTEXT_MARKER_RE)
+  const marker = cleanedAssistantContent.match(ATTACHED_CONTEXT_MARKER_RE)
 
   if (!marker || marker.index === undefined) {
-    return textContent.replace(CONTEXT_WARNINGS_MARKER_RE, '').trim()
+    return cleanedAssistantContent.replace(CONTEXT_WARNINGS_MARKER_RE, '').trim()
   }
 
-  const visibleText = textContent.slice(0, marker.index).replace(CONTEXT_WARNINGS_MARKER_RE, '').trim()
-  const attachedContext = textContent.slice(marker.index + marker[0].length)
+  const visibleText = cleanedAssistantContent.slice(0, marker.index).replace(CONTEXT_WARNINGS_MARKER_RE, '').trim()
+  const attachedContext = cleanedAssistantContent.slice(marker.index + marker[0].length)
   const refs = [...new Set(Array.from(attachedContext.matchAll(CONTEXT_REF_RE)).map(match => match[0]))]
 
   return [refs.join('\n'), visibleText].filter(Boolean).join('\n\n') || visibleText

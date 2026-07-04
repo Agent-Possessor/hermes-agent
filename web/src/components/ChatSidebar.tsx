@@ -106,6 +106,11 @@ export function ChatSidebar({
   // elsewhere, so the badge would go stale. `/api/model/info` is profile-scoped
   // by `fetchJSON`, so it reads the same profile this sidebar is scoped to.
   const [effectiveModel, setEffectiveModel] = useState("");
+  const [effectiveProvider, setEffectiveProvider] = useState("");
+  const [excitechGatewayMode, setExcitechGatewayMode] =
+    useState("openai-proxy");
+  const [excitechGatewayDomain, setExcitechGatewayDomain] = useState("");
+  const [excitechGatewayAgent, setExcitechGatewayAgent] = useState("");
   // Whether the effective model supports reasoning effort — gates the
   // ReasoningPicker. Read from the same `/api/model/info` capabilities the
   // (currently unused) ModelInfoCard surfaces, so the dashboard exposes a
@@ -127,7 +132,13 @@ export function ChatSidebar({
     void api
       .getModelInfo()
       .then((r) => {
-        if (r?.model) setEffectiveModel(String(r.model));
+        setEffectiveModel(String(r?.model ?? ""));
+        setEffectiveProvider(String(r?.provider ?? ""));
+        setExcitechGatewayMode(
+          String(r?.excitech_gateway_mode || "openai-proxy"),
+        );
+        setExcitechGatewayDomain(String(r?.excitech_gateway_domain || ""));
+        setExcitechGatewayAgent(String(r?.excitech_gateway_agent || ""));
         setSupportsReasoning(!!r?.capabilities?.supports_reasoning);
         // Bump so ReasoningPicker re-reads the saved effort for the new model.
         setModelRefreshKey((k) => k + 1);
@@ -305,6 +316,11 @@ export function ChatSidebar({
   // sidecar gateway session, so it's available whenever the sidebar is mounted.
   const modelName = effectiveModel || info.model || "—";
   const modelLabel = modelName.split("/").slice(-1)[0] ?? "—";
+  const showExcitechModeBadge =
+    effectiveProvider === "excitech-gateway" &&
+    excitechGatewayMode === "ai-chat";
+  const excitechTransportLabel =
+    excitechGatewayMode === "ai-chat" ? "/v1/ai/chat" : "/v1/openai";
   const banner = error ?? info.credential_warning ?? null;
 
   return (
@@ -337,6 +353,17 @@ export function ChatSidebar({
               <ChevronDown className="size-3.5 shrink-0 text-text-secondary" />
             </span>
           </Button>
+
+          {showExcitechModeBadge && (
+            <div className="mt-1 flex flex-wrap items-center gap-1 text-[11px] text-text-secondary">
+              <Badge tone="warning" className="px-1.5 py-0 text-[10px]">
+                AI chat
+              </Badge>
+              <span>transport {excitechTransportLabel}</span>
+              {excitechGatewayDomain && <span>domain {excitechGatewayDomain}</span>}
+              {excitechGatewayAgent && <span>agent {excitechGatewayAgent}</span>}
+            </div>
+          )}
         </div>
 
         <Badge tone={STATE_TONE[state]} className="shrink-0">
@@ -396,12 +423,26 @@ export function ChatSidebar({
           // sidecar config.set RPC, which didn't reliably land in the
           // config.yaml the agent boots from. Always persisted (alwaysGlobal).
           loader={api.getModelOptions}
+          allowExcitechGatewaySettings
           alwaysGlobal
-          onApply={async ({ provider, model, confirmExpensiveModel }) => {
+          initialExcitechGatewayAgent={excitechGatewayAgent || "assistant"}
+          initialExcitechGatewayDomain={excitechGatewayDomain || "general"}
+          initialExcitechGatewayMode={excitechGatewayMode || "openai-proxy"}
+          onApply={async ({
+            provider,
+            model,
+            confirmExpensiveModel,
+            excitechGatewayAgent,
+            excitechGatewayDomain,
+            excitechGatewayMode,
+          }) => {
             setModelNotice(null);
             setPendingReloadModel(null);
             const result = await api.setModelAssignment({
               confirm_expensive_model: confirmExpensiveModel,
+              excitech_gateway_agent: excitechGatewayAgent,
+              excitech_gateway_domain: excitechGatewayDomain,
+              excitech_gateway_mode: excitechGatewayMode,
               scope: "main",
               provider,
               model,

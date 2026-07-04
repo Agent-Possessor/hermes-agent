@@ -5,6 +5,9 @@ import { ModelPickerDialog } from '@/components/model-picker'
 import type { HermesGateway } from '@/hermes'
 import {
   $activeSessionId,
+  $currentExcitechGatewayAgent,
+  $currentExcitechGatewayDomain,
+  $currentExcitechGatewayMode,
   $currentModel,
   $currentProvider,
   $gatewayState,
@@ -19,6 +22,9 @@ interface ModelPickerOverlayProps {
 
 export function ModelPickerOverlay({ gateway, onSelect }: ModelPickerOverlayProps) {
   const activeSessionId = useStore($activeSessionId)
+  const currentExcitechGatewayAgent = useStore($currentExcitechGatewayAgent)
+  const currentExcitechGatewayDomain = useStore($currentExcitechGatewayDomain)
+  const currentExcitechGatewayMode = useStore($currentExcitechGatewayMode)
   const currentModel = useStore($currentModel)
   const currentProvider = useStore($currentProvider)
   const gatewayOpen = useStore($gatewayState) === 'open'
@@ -32,6 +38,9 @@ export function ModelPickerOverlay({ gateway, onSelect }: ModelPickerOverlayProp
     <ModelPickerDialog
       currentModel={currentModel}
       currentProvider={currentProvider}
+      currentExcitechGatewayAgent={currentExcitechGatewayAgent}
+      currentExcitechGatewayDomain={currentExcitechGatewayDomain}
+      currentExcitechGatewayMode={currentExcitechGatewayMode}
       gw={gateway}
       onOpenChange={setModelPickerOpen}
       onSelect={onSelect}

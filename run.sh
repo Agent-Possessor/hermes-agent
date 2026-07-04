@@ -89,8 +89,17 @@ ensure_npm_workspace_web() {
     fi
 }
 
+has_workspace_bin() {
+    local workspace_rel="$1"
+    local bin_name="$2"
+    [ -x "$ROOT/$workspace_rel/node_modules/.bin/$bin_name" ] || [ -x "$ROOT/node_modules/.bin/$bin_name" ]
+}
+
 ensure_npm_workspace_desktop() {
-    if [ ! -d "$ROOT/apps/desktop/node_modules" ]; then
+    if ! has_workspace_bin "apps/desktop" "concurrently" \
+        || ! has_workspace_bin "apps/desktop" "vite" \
+        || ! has_workspace_bin "apps/desktop" "electron" \
+        || ! has_workspace_bin "apps/desktop" "wait-on"; then
         info "Install desktop dependencies..."
         npm install --workspace apps/desktop
         ok "desktop workspace install selesai"
@@ -131,7 +140,7 @@ run_web_dev() {
     WEB_DIST="$ROOT/hermes_cli/web_dist"
     if [ ! -d "$WEB_DIST" ] || [ -z "$(ls -A "$WEB_DIST" 2>/dev/null)" ]; then
         info "Build web UI dulu..."
-        (cd "$ROOT/web" && npm run build)
+        npm run build --workspace web
     fi
 
     info "Jalankan backend di port 9119..."
@@ -146,7 +155,7 @@ run_web_dev() {
 
     sleep 2  # tunggu backend siap
 
-    (cd "$ROOT/web" && npm run dev) &
+    npm run dev --workspace web &
     FRONTEND_PID=$!
 
     echo ""

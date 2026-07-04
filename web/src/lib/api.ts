@@ -2020,6 +2020,9 @@ export interface ModelInfoResponse {
   auto_context_length: number;
   config_context_length: number;
   effective_context_length: number;
+  excitech_gateway_mode?: string;
+  excitech_gateway_domain?: string;
+  excitech_gateway_agent?: string;
   capabilities: {
     supports_tools?: boolean;
     supports_vision?: boolean;
@@ -2068,6 +2071,10 @@ export interface ModelAssignmentRequest {
   model: string;
   /** Optional OpenAI-compatible endpoint URL for custom/local main providers. */
   base_url?: string;
+  /** Excitech gateway transport mode. `/v1/ai/chat` is orchestration, not a model id. */
+  excitech_gateway_mode?: string;
+  excitech_gateway_domain?: string;
+  excitech_gateway_agent?: string;
   /** For auxiliary: task slot name, "" for all, "__reset__" to reset all. */
   task?: string;
 }

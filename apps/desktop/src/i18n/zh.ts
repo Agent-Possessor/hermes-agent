@@ -1793,7 +1793,14 @@ export const zh: Translations = {
     proNeedsSubscription: 'Pro 模型需要付费 Nous 订阅。',
     free: '免费',
     freeTier: '免费层',
-    priceTitle: '每百万 token 的输入/输出价格'
+    priceTitle: '每百万 token 的输入/输出价格',
+    excitechGatewayTitle: 'Excitech Gateway mode',
+    excitechGatewayDescription: '选择 Excitech 模型时会应用。`/v1/ai/chat` 是传输模式，不是单独的模型。',
+    excitechGatewayModeLabel: 'Mode',
+    excitechGatewayModeOpenAIProxy: 'OpenAI proxy',
+    excitechGatewayModeAIChat: 'AI chat orchestration',
+    excitechGatewayDomainLabel: 'Domain',
+    excitechGatewayAgentLabel: 'Agent'
   },
 
   modelVisibility: {
