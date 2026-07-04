@@ -41,6 +41,8 @@ display:
 | `poseidon` | 海神主题 — 深蓝与海沫绿 | `Poseidon Agent` | 深蓝到海沫绿渐变。海洋主题 spinner（"charting currents"、"sounding the depth"）。三叉戟 ASCII 艺术横幅。 |
 | `sisyphus` | 西西弗斯主题 — 朴素灰度，彰显坚韧 | `Sisyphus Agent` | 浅灰色配强烈对比。巨石主题 spinner（"pushing uphill"、"resetting the boulder"、"enduring the loop"）。巨石与山丘 ASCII 艺术横幅。 |
 | `charizard` | 火山主题 — 焦橙与余烬色 | `Charizard Agent` | 暖焦橙到余烬色渐变。火焰主题 spinner（"banking into the draft"、"measuring burn"）。龙剪影 ASCII 艺术横幅。 |
+| `nexa` | Nexa 主题 — 暗色网格画布上的金色点缀 | `Nexa Agent` | 金色边框和点缀 (`#FFD83B`)，暗石板色网格背景配白色正文。菱形/V型 spinner，双 caret 字符 ASCII 艺术横幅。 |
+| `nexa-light` | Nexa 浅色主题 — 亮色画布上的深蓝点缀 | `Nexa Agent` | 专为浅色终端设计。深蓝色边框和点缀 (`#00284b`) 配深灰色正文。菱形/V型 spinner，双 caret 字符 ASCII 艺术横幅。 |
 
 ## 可配置键完整列表
 
