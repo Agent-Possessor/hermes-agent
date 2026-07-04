@@ -142,9 +142,9 @@ export function ModelPickerDialog(props: Props) {
     const promise = standalone
       ? (loader as () => Promise<ModelOptionsResponse>)()
       : (gw as GatewayClient).request<ModelOptionsResponse>(
-          "model.options",
-          sessionId ? { session_id: sessionId } : {},
-        );
+        "model.options",
+        sessionId ? { session_id: sessionId } : {},
+      );
 
     promise
       .then((r) => {
@@ -194,6 +194,10 @@ export function ModelPickerDialog(props: Props) {
     selectedProviderSlug === "excitech-gateway";
 
   useEffect(() => {
+    // Providers haven't loaded yet (selectedSlug starts as "" until the
+    // fetch resolves) — don't clobber the seeded initial*/config values
+    // with the hardcoded defaults while we wait.
+    if (!selectedProviderSlug) return;
     if (selectedProviderSlug !== "excitech-gateway") {
       setExcitechGatewayMode("openai-proxy");
       setExcitechGatewayDomain("general");
@@ -352,7 +356,7 @@ export function ModelPickerDialog(props: Props) {
   // Toast.tsx for the same pattern.
   return createPortal(
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-background/85 p-4"
+      className="fixed inset-0 z-100 flex items-center justify-center bg-background/85 backdrop-blur-sm p-4"
       onClick={(e) => e.target === e.currentTarget && onClose()}
       role="dialog"
       aria-modal="true"
@@ -580,9 +584,8 @@ function ProviderColumn({
             key={p.slug}
             active={active}
             onClick={() => onSelect(p.slug)}
-            className={`items-start text-xs border-l-2 ${
-              active ? "border-l-primary" : "border-l-transparent"
-            }`}
+            className={`items-start text-xs border-l-2 ${active ? "border-l-primary" : "border-l-transparent"
+              }`}
           >
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5">
