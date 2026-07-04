@@ -50,6 +50,94 @@ def _ra():
     return run_agent
 
 
+_DSML_TAG_STEM = r"(?:[|｜]\s*){2}DSML(?:\s*[|｜]){2}"
+_DSML_TOOL_CALLS_RE = re.compile(
+    rf"<\s*{_DSML_TAG_STEM}\s*tool_calls\s*>(.*?)</\s*{_DSML_TAG_STEM}\s*tool_calls\s*>",
+    flags=re.DOTALL | re.IGNORECASE,
+)
+_DSML_INVOKE_RE = re.compile(
+    rf"<\s*{_DSML_TAG_STEM}\s*invoke\b([^>]*)>(.*?)</\s*{_DSML_TAG_STEM}\s*invoke\s*>",
+    flags=re.DOTALL | re.IGNORECASE,
+)
+_DSML_PARAM_RE = re.compile(
+    rf"<\s*{_DSML_TAG_STEM}\s*parameter\b([^>]*)>(.*?)</\s*{_DSML_TAG_STEM}\s*parameter\s*>",
+    flags=re.DOTALL | re.IGNORECASE,
+)
+_XML_ATTR_RE = re.compile(r'([A-Za-z_][A-Za-z0-9_-]*)\s*=\s*"([^"]*)"')
+
+
+def _extract_dsml_tool_calls(content: str) -> tuple[str, list[SimpleNamespace]]:
+    """Parse DSML-style inline tool calls from assistant text.
+
+    Some providers emit tool invocations as plain text markup instead of
+    structured ``tool_calls``. Hermes should salvage these into the same
+    in-memory shape the normal tool loop already expects.
+    """
+    if not isinstance(content, str) or "DSML" not in content.upper():
+        return content, []
+
+    parsed_calls: list[SimpleNamespace] = []
+    matched_blocks = False
+
+    for match in _DSML_TOOL_CALLS_RE.finditer(content):
+        matched_blocks = True
+        block = match.group(1) or ""
+        for invoke_index, invoke_match in enumerate(_DSML_INVOKE_RE.finditer(block)):
+            attrs = dict(_XML_ATTR_RE.findall(invoke_match.group(1) or ""))
+            tool_name = (attrs.get("name") or "").strip()
+            payload = invoke_match.group(2) or ""
+            arguments: dict[str, Any] = {}
+
+            for param_match in _DSML_PARAM_RE.finditer(payload):
+                param_attrs = dict(_XML_ATTR_RE.findall(param_match.group(1) or ""))
+                param_name = (param_attrs.get("name") or "").strip()
+                string_flag = (param_attrs.get("string") or "").strip().lower()
+                raw_value = (param_match.group(2) or "").strip()
+                if not param_name:
+                    continue
+                if string_flag == "true":
+                    arguments[param_name] = raw_value
+                    continue
+                if raw_value == "":
+                    arguments[param_name] = ""
+                    continue
+                try:
+                    arguments[param_name] = json.loads(raw_value)
+                except Exception:
+                    lowered = raw_value.lower()
+                    if lowered == "true":
+                        arguments[param_name] = True
+                    elif lowered == "false":
+                        arguments[param_name] = False
+                    else:
+                        arguments[param_name] = raw_value
+
+            if not tool_name:
+                continue
+
+            call_id = f"dsml_{tool_name}_{invoke_index}_{uuid.uuid4().hex[:12]}"
+            parsed_calls.append(
+                SimpleNamespace(
+                    id=call_id,
+                    call_id=call_id,
+                    response_item_id=None,
+                    type="function",
+                    extra_content=None,
+                    function=SimpleNamespace(
+                        name=tool_name,
+                        arguments=json.dumps(arguments, ensure_ascii=False),
+                    ),
+                )
+            )
+
+    if not matched_blocks:
+        return content, []
+
+    cleaned = _DSML_TOOL_CALLS_RE.sub("", content)
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned).strip()
+    return cleaned, parsed_calls
+
+
 def estimate_request_context_tokens(api_payload: Any) -> int:
     """Estimate context/load tokens from an API payload, dict or messages list.
 
@@ -853,6 +941,14 @@ def build_assistant_message(agent, assistant_message, finish_reason: str) -> dic
     # Sanitize surrogates from API response — some models (e.g. Kimi/GLM via Ollama)
     # can return invalid surrogate code points that crash json.dumps() on persist.
     _raw_content = assistant_message.content or ""
+    _raw_content, parsed_dsml_tool_calls = _extract_dsml_tool_calls(_raw_content)
+    if parsed_dsml_tool_calls and not assistant_tool_calls:
+        assistant_tool_calls = parsed_dsml_tool_calls
+        if agent.verbose_logging:
+            logging.debug(
+                "Recovered %d DSML inline tool call(s) from assistant content",
+                len(parsed_dsml_tool_calls),
+            )
     _san_content = _sanitize_surrogates(_raw_content)
     if reasoning_text:
         reasoning_text = _sanitize_surrogates(reasoning_text)
@@ -976,6 +1072,12 @@ def build_assistant_message(agent, assistant_message, finish_reason: str) -> dic
     codex_message_items = getattr(assistant_message, "codex_message_items", None)
     if codex_message_items:
         msg["codex_message_items"] = codex_message_items
+
+    model_extra = getattr(assistant_message, "model_extra", None)
+    if isinstance(model_extra, dict):
+        gateway_meta = model_extra.get("excitech_gateway")
+        if isinstance(gateway_meta, dict) and gateway_meta:
+            msg["excitech_gateway"] = gateway_meta
 
     if assistant_tool_calls:
         tool_calls = []
