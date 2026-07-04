@@ -132,11 +132,7 @@ describe('useModelControls', () => {
     let controls!: Controls
 
     render(
-      <Harness
-        activeSessionId="session-1"
-        onReady={value => (controls = value)}
-        requestGateway={requestGateway}
-      />
+      <Harness activeSessionId="session-1" onReady={value => (controls = value)} requestGateway={requestGateway} />
     )
 
     await expect(
@@ -158,13 +154,7 @@ describe('useModelControls', () => {
     const requestGateway = vi.fn()
     let controls!: Controls
 
-    render(
-      <Harness
-        activeSessionId={null}
-        onReady={value => (controls = value)}
-        requestGateway={requestGateway}
-      />
-    )
+    render(<Harness activeSessionId={null} onReady={value => (controls = value)} requestGateway={requestGateway} />)
 
     await expect(
       controls.selectModel({
