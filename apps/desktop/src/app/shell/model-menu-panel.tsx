@@ -32,10 +32,14 @@ import {
 } from '@/store/model-visibility'
 import {
   $activeSessionId,
+  $currentExcitechGatewayAgent,
+  $currentExcitechGatewayDomain,
+  $currentExcitechGatewayMode,
   $currentFastMode,
   $currentModel,
   $currentProvider,
-  $currentReasoningEffort
+  $currentReasoningEffort,
+  setCurrentExcitechGatewayMode
 } from '@/store/session'
 import type { ModelOptionProvider, ModelOptionsResponse } from '@/types/hermes'
 
@@ -48,7 +52,13 @@ export const ModelMenuCloseContext = createContext<() => void>(() => {})
 
 interface ModelMenuPanelProps {
   gateway?: HermesGateway
-  onSelectModel: (selection: { model: string; provider: string }) => Promise<boolean> | void
+  onSelectModel: (selection: {
+    excitechGatewayAgent?: string
+    excitechGatewayDomain?: string
+    excitechGatewayMode?: string
+    model: string
+    provider: string
+  }) => Promise<boolean> | void
   requestGateway: <T>(method: string, params?: Record<string, unknown>) => Promise<T>
 }
 
@@ -68,6 +78,9 @@ export function ModelMenuPanel({ gateway, onSelectModel, requestGateway }: Model
   // toggling effort/fast/model re-renders this panel in place without forcing
   // the parent to rebuild the menu content (which would close the dropdown).
   const activeSessionId = useStore($activeSessionId)
+  const currentExcitechGatewayAgent = useStore($currentExcitechGatewayAgent)
+  const currentExcitechGatewayDomain = useStore($currentExcitechGatewayDomain)
+  const currentExcitechGatewayMode = useStore($currentExcitechGatewayMode)
   const currentFastMode = useStore($currentFastMode)
   const currentModel = useStore($currentModel)
   const currentProvider = useStore($currentProvider)
@@ -110,7 +123,18 @@ export function ModelMenuPanel({ gateway, onSelectModel, requestGateway }: Model
   // The composer picker never persists the profile default. With a session it
   // scopes the switch to that session; with none it's UI state shipped on the
   // next session.create (see selectModel). The default lives in Settings → Model.
-  const switchTo = (model: string, provider: string) => onSelectModel({ model, provider })
+  const switchTo = (model: string, provider: string) =>
+    onSelectModel({
+      model,
+      provider,
+      ...(provider === 'excitech-gateway'
+        ? {
+            excitechGatewayMode: currentExcitechGatewayMode,
+            excitechGatewayDomain: currentExcitechGatewayDomain,
+            excitechGatewayAgent: currentExcitechGatewayAgent
+          }
+        : {})
+    })
 
   // Explicit "Refresh Models": re-fetch the catalog with refresh:true so the
   // backend busts its 1h provider-model disk cache and re-pulls each provider's
@@ -173,6 +197,10 @@ export function ModelMenuPanel({ gateway, onSelectModel, requestGateway }: Model
     () => groupModels(providers ?? [], search, { model: optionsModel, provider: optionsProvider }, effectiveVisibleModels),
     [providers, search, optionsModel, optionsProvider, effectiveVisibleModels]
   )
+  const hasExcitechGatewayProvider = useMemo(
+    () => (providers ?? []).some(provider => provider.slug === 'excitech-gateway'),
+    [providers]
+  )
 
   return (
     <>
@@ -182,6 +210,51 @@ export function ModelMenuPanel({ gateway, onSelectModel, requestGateway }: Model
         placeholder={copy.search}
         value={search}
       />
+
+      {hasExcitechGatewayProvider ? (
+        <>
+          <DropdownMenuSeparator className="mx-0" />
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger className={dropdownMenuRow}>
+              <span className="min-w-0 flex-1 truncate">
+                Excitech Gateway Mode
+                <span className="text-(--ui-text-tertiary)">
+                  {' '}
+                  {currentExcitechGatewayMode === 'ai-chat'
+                    ? 'AI chat · /v1/ai/chat'
+                    : 'OpenAI proxy · /v1/openai'}
+                </span>
+              </span>
+            </DropdownMenuSubTrigger>
+            <DropdownMenuGroup className="py-0.5">
+              <DropdownMenuItem
+                className={dropdownMenuRow}
+                onSelect={event => {
+                  event.preventDefault()
+                  setCurrentExcitechGatewayMode('openai-proxy')
+                }}
+              >
+                <span className="min-w-0 flex-1 truncate">OpenAI proxy</span>
+                {currentExcitechGatewayMode === 'openai-proxy' ? (
+                  <Codicon className="ml-auto text-foreground" name="check" size="0.75rem" />
+                ) : null}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className={dropdownMenuRow}
+                onSelect={event => {
+                  event.preventDefault()
+                  setCurrentExcitechGatewayMode('ai-chat')
+                }}
+              >
+                <span className="min-w-0 flex-1 truncate">AI chat orchestration</span>
+                {currentExcitechGatewayMode === 'ai-chat' ? (
+                  <Codicon className="ml-auto text-foreground" name="check" size="0.75rem" />
+                ) : null}
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
+          </DropdownMenuSub>
+        </>
+      ) : null}
 
       <DropdownMenuSeparator className="mx-0" />
 
