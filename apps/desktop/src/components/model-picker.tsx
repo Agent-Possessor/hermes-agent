@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import { useI18n } from '@/i18n'
 import { currentPickerSelection } from '@/lib/model-status-label'
@@ -14,6 +14,7 @@ import { InlineNotice } from './notifications'
 import { Button } from './ui/button'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from './ui/command'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog'
+import { Input } from './ui/input'
 import { Skeleton } from './ui/skeleton'
 
 interface ModelPickerDialogProps {
@@ -23,7 +24,16 @@ interface ModelPickerDialogProps {
   sessionId?: string | null
   currentModel: string
   currentProvider: string
-  onSelect: (selection: { provider: string; model: string }) => void
+  currentExcitechGatewayAgent?: string
+  currentExcitechGatewayDomain?: string
+  currentExcitechGatewayMode?: string
+  onSelect: (selection: {
+    excitechGatewayAgent?: string
+    excitechGatewayDomain?: string
+    excitechGatewayMode?: string
+    provider: string
+    model: string
+  }) => void
   /**
    * Optional class to apply to DialogContent. Use to override z-index when
    * stacking the picker on top of another fixed overlay (e.g. the desktop
@@ -40,6 +50,9 @@ export function ModelPickerDialog({
   sessionId,
   currentModel,
   currentProvider,
+  currentExcitechGatewayAgent = 'assistant',
+  currentExcitechGatewayDomain = 'general',
+  currentExcitechGatewayMode = 'openai-proxy',
   onSelect,
   contentClassName
 }: ModelPickerDialogProps) {
@@ -51,6 +64,9 @@ export function ModelPickerDialog({
   // it and do a plain substring filter that preserves array order — matching
   // the `hermes model` CLI picker, which shows the curated list verbatim.
   const [search, setSearch] = useState('')
+  const [excitechGatewayMode, setExcitechGatewayMode] = useState(currentExcitechGatewayMode)
+  const [excitechGatewayDomain, setExcitechGatewayDomain] = useState(currentExcitechGatewayDomain)
+  const [excitechGatewayAgent, setExcitechGatewayAgent] = useState(currentExcitechGatewayAgent)
 
   const modelOptions = useQuery({
     queryKey: ['model-options', sessionId || 'global'],
@@ -67,6 +83,10 @@ export function ModelPickerDialog({
   })
 
   const providers = modelOptions.data?.providers ?? []
+  const hasExcitechGatewayProvider = useMemo(
+    () => providers.some(provider => provider.slug === 'excitech-gateway'),
+    [providers]
+  )
 
   const { model: optionsModel, provider: optionsProvider } = currentPickerSelection(
     !!sessionId,
@@ -82,8 +102,41 @@ export function ModelPickerDialog({
       : String(modelOptions.error)
     : null
 
+  useEffect(() => {
+    setExcitechGatewayMode(currentExcitechGatewayMode)
+  }, [currentExcitechGatewayMode])
+
+  useEffect(() => {
+    setExcitechGatewayDomain(currentExcitechGatewayDomain)
+  }, [currentExcitechGatewayDomain])
+
+  useEffect(() => {
+    setExcitechGatewayAgent(currentExcitechGatewayAgent)
+  }, [currentExcitechGatewayAgent])
+
   const selectModel = (provider: ModelOptionProvider, model: string) => {
-    onSelect({ provider: provider.slug, model })
+    const lowered = model.toLowerCase()
+    const nextAgent =
+      provider.slug === 'excitech-gateway'
+        ? (excitechGatewayAgent.trim() ||
+            (lowered.includes('reasoning')
+              ? 'analyst'
+              : lowered.includes('coder') || lowered.includes('code')
+                ? 'developer'
+                : 'assistant'))
+        : undefined
+
+    onSelect({
+      provider: provider.slug,
+      model,
+      ...(provider.slug === 'excitech-gateway'
+        ? {
+            excitechGatewayMode: excitechGatewayMode.trim() || 'openai-proxy',
+            excitechGatewayDomain: excitechGatewayDomain.trim() || 'general',
+            excitechGatewayAgent: nextAgent
+          }
+        : {})
+    })
     onOpenChange(false)
   }
 
@@ -127,6 +180,47 @@ export function ModelPickerDialog({
             />
           </CommandList>
         </Command>
+
+        {hasExcitechGatewayProvider && (
+          <section className="border-t border-border bg-card px-4 py-3">
+            <div className="mb-3">
+              <h3 className="text-sm font-medium">{copy.excitechGatewayTitle}</h3>
+              <p className="mt-1 text-xs text-muted-foreground">{copy.excitechGatewayDescription}</p>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-3">
+              <label className="space-y-1.5 text-sm">
+                <span className="text-xs text-muted-foreground">{copy.excitechGatewayModeLabel}</span>
+                <select
+                  className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                  onChange={event => setExcitechGatewayMode(event.target.value)}
+                  value={excitechGatewayMode}
+                >
+                  <option value="openai-proxy">{copy.excitechGatewayModeOpenAIProxy}</option>
+                  <option value="ai-chat">{copy.excitechGatewayModeAIChat}</option>
+                </select>
+              </label>
+
+              <label className="space-y-1.5 text-sm">
+                <span className="text-xs text-muted-foreground">{copy.excitechGatewayDomainLabel}</span>
+                <Input
+                  onChange={event => setExcitechGatewayDomain(event.target.value)}
+                  placeholder="general"
+                  value={excitechGatewayDomain}
+                />
+              </label>
+
+              <label className="space-y-1.5 text-sm">
+                <span className="text-xs text-muted-foreground">{copy.excitechGatewayAgentLabel}</span>
+                <Input
+                  onChange={event => setExcitechGatewayAgent(event.target.value)}
+                  placeholder="assistant"
+                  value={excitechGatewayAgent}
+                />
+              </label>
+            </div>
+          </section>
+        )}
 
         <DialogFooter className="flex-row items-center justify-end gap-2 bg-card p-3">
           <Button onClick={addProvider} variant="ghost">

@@ -434,8 +434,8 @@ export default function ProfilesPage() {
       const cloning = cloneFrom !== null;
       const picked = modelChoice
         ? modelChoices?.find(
-            (c) => `${c.provider}\u0000${c.model}` === modelChoice,
-          )
+          (c) => `${c.provider}\u0000${c.model}` === modelChoice,
+        )
         : undefined;
       const res = await api.createProfile({
         name,
@@ -589,10 +589,10 @@ export default function ProfilesPage() {
         prev.map((p) =>
           p.name === name
             ? {
-                ...p,
-                description: res.description,
-                description_auto: res.description_auto,
-              }
+              ...p,
+              description: res.description,
+              description_auto: res.description_auto,
+            }
             : p,
         ),
       );
@@ -623,10 +623,10 @@ export default function ProfilesPage() {
           prev.map((p) =>
             p.name === name
               ? {
-                  ...p,
-                  description: res.description ?? "",
-                  description_auto: res.description_auto,
-                }
+                ...p,
+                description: res.description ?? "",
+                description_auto: res.description_auto,
+              }
               : p,
           ),
         );
@@ -662,8 +662,8 @@ export default function ProfilesPage() {
   const handleSaveModel = async (name: string) => {
     const picked = modelEditChoice
       ? modelChoices?.find(
-          (c) => `${c.provider}\u0000${c.model}` === modelEditChoice,
-        )
+        (c) => `${c.provider}\u0000${c.model}` === modelEditChoice,
+      )
       : undefined;
     if (!picked) return;
     setModelSaving(true);
@@ -804,7 +804,7 @@ export default function ProfilesPage() {
       {createModalOpen && (
         <div
           ref={createModalRef}
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-background/85 backdrop-blur-sm p-4"
+          className="fixed inset-0 z-100 flex items-center justify-center bg-background/85 backdrop-blur-sm p-4"
           onClick={(e) =>
             e.target === e.currentTarget && setCreateModalOpen(false)
           }
@@ -1231,7 +1231,7 @@ export default function ProfilesPage() {
       {editorName && (
         <div
           ref={editorModalRef}
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-background/85 backdrop-blur-sm p-4"
+          className="fixed inset-0 z-100 flex items-center justify-center bg-background/85 backdrop-blur-sm p-4"
           onClick={(e) => e.target === e.currentTarget && closeEditor()}
           role="dialog"
           aria-modal="true"

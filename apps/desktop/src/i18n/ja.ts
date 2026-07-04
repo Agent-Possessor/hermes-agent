@@ -1744,7 +1744,14 @@ export const ja = defineLocale({
     proNeedsSubscription: 'Pro モデルには有料の Nous サブスクリプションが必要です。',
     free: '無料',
     freeTier: '無料プラン',
-    priceTitle: '100 万トークンあたりの入力/出力価格'
+    priceTitle: '100 万トークンあたりの入力/出力価格',
+    excitechGatewayTitle: 'Excitech Gateway mode',
+    excitechGatewayDescription: 'Excitech モデルを選ぶときに適用されます。`/v1/ai/chat` は別モデルではなくトランスポートモードです。',
+    excitechGatewayModeLabel: 'Mode',
+    excitechGatewayModeOpenAIProxy: 'OpenAI proxy',
+    excitechGatewayModeAIChat: 'AI chat orchestration',
+    excitechGatewayDomainLabel: 'Domain',
+    excitechGatewayAgentLabel: 'Agent'
   },
 
   modelVisibility: {

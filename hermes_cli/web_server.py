@@ -385,6 +385,17 @@ def should_require_auth(host: str, allow_public: bool = False) -> bool:
     MCP-persistence campaign, where ``--insecure --host 0.0.0.0`` left the
     config/MCP/agent surface open to internet scanners.
     """
+    import os
+    # Desktop-spawned local backends always bind to loopback and authenticate
+    # the renderer with the ephemeral X-Hermes-Session-Token header. The
+    # project/.hermes .env may still contain dashboard basic-auth vars for
+    # standalone browser usage, but honoring them here would flip the desktop
+    # child into cookie-login mode and make Electron's token-based bootstrap
+    # fail with 401 no_cookie.
+    if os.environ.get("HERMES_DESKTOP") == "1" and host in _LOOPBACK_HOST_VALUES:
+        return False
+    if os.environ.get("HERMES_DASHBOARD_BASIC_AUTH_USERNAME"):
+        return True
     return host not in _LOOPBACK_HOST_VALUES
 
 
@@ -511,6 +522,27 @@ _SCHEMA_OVERRIDES: Dict[str, Dict[str, Any]] = {
         "description": "Context window override (0 = auto-detect from model metadata)",
         "category": "general",
     },
+    "excitech_gateway_mode": {
+        "type": "select",
+        "description": "Excitech gateway transport mode for Hermes",
+        "category": "general",
+        "options": ["openai-proxy", "ai-chat"],
+    },
+    "excitech_gateway_domain": {
+        "type": "string",
+        "description": "Excitech AI chat domain override (used when ai-chat mode is selected)",
+        "category": "general",
+    },
+    "excitech_gateway_agent": {
+        "type": "string",
+        "description": "Excitech AI chat agent/profile override (used when ai-chat mode is selected)",
+        "category": "general",
+    },
+    "excitech_gateway_provider_policy": {
+        "type": "text",
+        "description": "Optional Excitech AI chat provider policy override as JSON",
+        "category": "general",
+    },
     "terminal.backend": {
         "type": "select",
         "description": "Terminal execution backend",
@@ -546,7 +578,7 @@ _SCHEMA_OVERRIDES: Dict[str, Dict[str, Any]] = {
     "dashboard.theme": {
         "type": "select",
         "description": "Web dashboard visual theme",
-        "options": ["default", "midnight", "ember", "mono", "cyberpunk", "rose"],
+        "options": ["default", "midnight", "ember", "mono", "cyberpunk", "rose", "nexa", "nexa-light"],
     },
     "display.resume_display": {
         "type": "select",
@@ -703,11 +735,19 @@ CONFIG_SCHEMA = _build_schema_from_config(DEFAULT_CONFIG)
 # by the normalize/denormalize cycle.  Insert model_context_length right after
 # the "model" key so it renders adjacent in the frontend.
 _mcl_entry = _SCHEMA_OVERRIDES["model_context_length"]
+_excitech_virtual_after_model = (
+    ("model_context_length", _mcl_entry),
+    ("excitech_gateway_mode", _SCHEMA_OVERRIDES["excitech_gateway_mode"]),
+    ("excitech_gateway_domain", _SCHEMA_OVERRIDES["excitech_gateway_domain"]),
+    ("excitech_gateway_agent", _SCHEMA_OVERRIDES["excitech_gateway_agent"]),
+    ("excitech_gateway_provider_policy", _SCHEMA_OVERRIDES["excitech_gateway_provider_policy"]),
+)
 _ordered_schema: Dict[str, Dict[str, Any]] = {}
 for _k, _v in CONFIG_SCHEMA.items():
     _ordered_schema[_k] = _v
     if _k == "model":
-        _ordered_schema["model_context_length"] = _mcl_entry
+        for _virtual_key, _virtual_schema in _excitech_virtual_after_model:
+            _ordered_schema[_virtual_key] = _virtual_schema
 CONFIG_SCHEMA = _ordered_schema
 
 
@@ -827,6 +867,12 @@ class ModelAssignment(BaseModel):
     # ``hermes model`` custom flow collects. Honored only on the main slot for
     # custom/local providers.
     api_key: str = ""
+    # Excitech gateway transport mode override. `/v1/ai/chat` is an
+    # orchestration transport, not a model, so the UI persists it alongside
+    # the main model assignment instead of surfacing it as a pseudo-model row.
+    excitech_gateway_mode: str = ""
+    excitech_gateway_domain: str = ""
+    excitech_gateway_agent: str = ""
     confirm_expensive_model: bool = False
     profile: Optional[str] = None
 
@@ -3316,8 +3362,9 @@ def _normalize_config_for_web(config: Dict[str, Any]) -> Dict[str, Any]:
     from DEFAULT_CONFIG where ``model`` is a string, but user configs often have the
     dict form.  Normalize to the string form so the frontend schema matches.
 
-    Also surfaces ``model_context_length`` as a top-level field so the web UI can
-    display and edit it.  A value of 0 means "auto-detect".
+    Also surfaces Excitech gateway transport fields and ``model_context_length``
+    as top-level virtual fields so the web UI can display and edit them. A
+    context length of 0 means "auto-detect".
     """
     config = dict(config)  # shallow copy
     model_val = config.get("model")
@@ -3326,8 +3373,21 @@ def _normalize_config_for_web(config: Dict[str, Any]) -> Dict[str, Any]:
         ctx_len = model_val.get("context_length", 0)
         config["model"] = model_val.get("default", model_val.get("name", ""))
         config["model_context_length"] = ctx_len if isinstance(ctx_len, int) else 0
+        config["excitech_gateway_mode"] = str(model_val.get("excitech_gateway_mode") or "openai-proxy")
+        config["excitech_gateway_domain"] = str(model_val.get("excitech_gateway_domain") or "")
+        config["excitech_gateway_agent"] = str(model_val.get("excitech_gateway_agent") or "")
+        policy = model_val.get("excitech_gateway_provider_policy")
+        config["excitech_gateway_provider_policy"] = (
+            json.dumps(policy, ensure_ascii=False, indent=2)
+            if isinstance(policy, (dict, list))
+            else str(policy or "")
+        )
     else:
         config["model_context_length"] = 0
+        config["excitech_gateway_mode"] = "openai-proxy"
+        config["excitech_gateway_domain"] = ""
+        config["excitech_gateway_agent"] = ""
+        config["excitech_gateway_provider_policy"] = ""
     return config
 
 
@@ -3532,11 +3592,23 @@ def get_model_info(profile: Optional[str] = None):
             provider = model_cfg.get("provider", "")
             base_url = model_cfg.get("base_url", "")
             config_ctx = model_cfg.get("context_length")
+            excitech_gateway_mode = str(
+                model_cfg.get("excitech_gateway_mode") or "openai-proxy"
+            ).strip().lower()
+            excitech_gateway_domain = str(
+                model_cfg.get("excitech_gateway_domain") or ""
+            ).strip()
+            excitech_gateway_agent = str(
+                model_cfg.get("excitech_gateway_agent") or ""
+            ).strip()
         else:
             model_name = str(model_cfg) if model_cfg else ""
             provider = ""
             base_url = ""
             config_ctx = None
+            excitech_gateway_mode = "openai-proxy"
+            excitech_gateway_domain = ""
+            excitech_gateway_agent = ""
 
         if not model_name:
             return dict(_EMPTY_MODEL_INFO, provider=provider)
@@ -3584,6 +3656,9 @@ def get_model_info(profile: Optional[str] = None):
             "auto_context_length": auto_ctx,
             "config_context_length": config_ctx_int,
             "effective_context_length": effective_ctx,
+            "excitech_gateway_mode": excitech_gateway_mode,
+            "excitech_gateway_domain": excitech_gateway_domain,
+            "excitech_gateway_agent": excitech_gateway_agent,
             "capabilities": caps,
         }
     except HTTPException:
@@ -3800,6 +3875,9 @@ async def set_model_assignment(body: ModelAssignment, profile: Optional[str] = N
     task = (body.task or "").strip().lower()
     base_url = (body.base_url or "").strip()
     api_key = (body.api_key or "").strip()
+    excitech_gateway_mode = (body.excitech_gateway_mode or "").strip()
+    excitech_gateway_domain = (body.excitech_gateway_domain or "").strip()
+    excitech_gateway_agent = (body.excitech_gateway_agent or "").strip()
 
     if scope not in {"main", "auxiliary"}:
         raise HTTPException(status_code=400, detail="scope must be 'main' or 'auxiliary'")
@@ -3836,7 +3914,15 @@ async def set_model_assignment(body: ModelAssignment, profile: Optional[str] = N
         def _apply_assignment():
             with _profile_scope(body.profile or profile):
                 return _apply_model_assignment_sync(
-                    scope, provider, model, task, base_url, api_key
+                    scope,
+                    provider,
+                    model,
+                    task,
+                    base_url,
+                    api_key,
+                    excitech_gateway_mode,
+                    excitech_gateway_domain,
+                    excitech_gateway_agent,
                 )
 
         return await asyncio.to_thread(_apply_assignment)
@@ -3848,7 +3934,15 @@ async def set_model_assignment(body: ModelAssignment, profile: Optional[str] = N
 
 
 def _apply_model_assignment_sync(
-    scope: str, provider: str, model: str, task: str, base_url: str, api_key: str = ""
+    scope: str,
+    provider: str,
+    model: str,
+    task: str,
+    base_url: str,
+    api_key: str = "",
+    excitech_gateway_mode: str = "",
+    excitech_gateway_domain: str = "",
+    excitech_gateway_agent: str = "",
 ):
     """Synchronous body of POST /api/model/set.
 
@@ -3865,6 +3959,17 @@ def _apply_model_assignment_sync(
         model_cfg = _apply_main_model_assignment(
             cfg.get("model", {}), provider, model, base_url, api_key
         )
+        if provider.strip().lower() == "excitech-gateway":
+            mode = (excitech_gateway_mode or "openai-proxy").strip().lower()
+            model_cfg["excitech_gateway_mode"] = mode
+            if excitech_gateway_domain.strip():
+                model_cfg["excitech_gateway_domain"] = excitech_gateway_domain.strip()
+            elif "excitech_gateway_domain" in model_cfg:
+                model_cfg.pop("excitech_gateway_domain", None)
+            if excitech_gateway_agent.strip():
+                model_cfg["excitech_gateway_agent"] = excitech_gateway_agent.strip()
+            elif "excitech_gateway_agent" in model_cfg:
+                model_cfg.pop("excitech_gateway_agent", None)
         cfg["model"] = model_cfg
 
         # When switching the main provider to Nous, mirror the CLI's
@@ -4027,13 +4132,27 @@ def _denormalize_config_from_web(config: Dict[str, Any]) -> Dict[str, Any]:
     # with the stripped GET response, but be defensive)
     config.pop("_model_meta", None)
 
-    # Extract and remove model_context_length before processing model
+    # Extract and remove virtual model fields before processing model
     ctx_override = config.pop("model_context_length", 0)
+    excitech_mode = str(config.pop("excitech_gateway_mode", "") or "").strip().lower()
+    excitech_domain = str(config.pop("excitech_gateway_domain", "") or "").strip()
+    excitech_agent = str(config.pop("excitech_gateway_agent", "") or "").strip()
+    excitech_provider_policy_raw = config.pop("excitech_gateway_provider_policy", "")
     if not isinstance(ctx_override, int):
         try:
             ctx_override = int(ctx_override)
         except (TypeError, ValueError):
             ctx_override = 0
+    excitech_provider_policy: Any = None
+    if isinstance(excitech_provider_policy_raw, str):
+        raw = excitech_provider_policy_raw.strip()
+        if raw:
+            try:
+                excitech_provider_policy = json.loads(raw)
+            except Exception:
+                excitech_provider_policy = raw
+    elif excitech_provider_policy_raw not in ("", None):
+        excitech_provider_policy = excitech_provider_policy_raw
 
     model_val = config.get("model")
     if isinstance(model_val, str) and model_val:
@@ -4049,14 +4168,44 @@ def _denormalize_config_from_web(config: Dict[str, Any]) -> Dict[str, Any]:
                     disk_model["context_length"] = ctx_override
                 else:
                     disk_model.pop("context_length", None)
+                if excitech_mode:
+                    disk_model["excitech_gateway_mode"] = excitech_mode
+                else:
+                    disk_model.pop("excitech_gateway_mode", None)
+                if excitech_domain:
+                    disk_model["excitech_gateway_domain"] = excitech_domain
+                else:
+                    disk_model.pop("excitech_gateway_domain", None)
+                if excitech_agent:
+                    disk_model["excitech_gateway_agent"] = excitech_agent
+                else:
+                    disk_model.pop("excitech_gateway_agent", None)
+                if excitech_provider_policy not in (None, ""):
+                    disk_model["excitech_gateway_provider_policy"] = excitech_provider_policy
+                else:
+                    disk_model.pop("excitech_gateway_provider_policy", None)
                 config["model"] = disk_model
             # Model was previously a bare string — upgrade to dict if
-            # user is setting a context_length override
-            elif ctx_override > 0:
-                config["model"] = {
-                    "default": model_val,
-                    "context_length": ctx_override,
-                }
+            # user is setting a context_length override or gateway extras.
+            elif (
+                ctx_override > 0
+                or excitech_mode
+                or excitech_domain
+                or excitech_agent
+                or excitech_provider_policy not in (None, "")
+            ):
+                next_model: Dict[str, Any] = {"default": model_val}
+                if ctx_override > 0:
+                    next_model["context_length"] = ctx_override
+                if excitech_mode:
+                    next_model["excitech_gateway_mode"] = excitech_mode
+                if excitech_domain:
+                    next_model["excitech_gateway_domain"] = excitech_domain
+                if excitech_agent:
+                    next_model["excitech_gateway_agent"] = excitech_agent
+                if excitech_provider_policy not in (None, ""):
+                    next_model["excitech_gateway_provider_policy"] = excitech_provider_policy
+                config["model"] = next_model
         except Exception:
             pass  # can't read disk config — just use the string form
     return config
@@ -11905,6 +12054,8 @@ _BUILTIN_DASHBOARD_THEMES = [
     {"name": "mono",      "label": "Mono",           "description": "Clean grayscale — minimal and focused"},
     {"name": "cyberpunk", "label": "Cyberpunk",      "description": "Neon green on black — matrix terminal"},
     {"name": "rose",      "label": "Rosé",           "description": "Soft pink and warm ivory — easy on the eyes"},
+    {"name": "nexa",      "label": "Nexa",           "description": "Gold accents on a deep dark grid canvas"},
+    {"name": "nexa-light", "label": "Nexa Light",    "description": "Light mode — dark blue accents on a bright canvas"},
 ]
 
 

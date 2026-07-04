@@ -5,8 +5,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getGlobalModelInfo } from '@/hermes'
 import {
   $activeSessionId,
+  $currentExcitechGatewayAgent,
+  $currentExcitechGatewayDomain,
+  $currentExcitechGatewayMode,
   $currentModel,
   $currentProvider,
+  setCurrentExcitechGatewayAgent,
+  setCurrentExcitechGatewayDomain,
+  setCurrentExcitechGatewayMode,
   setCurrentModel,
   setCurrentProvider
 } from '@/store/session'
@@ -62,6 +68,9 @@ describe('useModelControls', () => {
     $activeSessionId.set(null)
     setCurrentModel('')
     setCurrentProvider('')
+    setCurrentExcitechGatewayMode('openai-proxy')
+    setCurrentExcitechGatewayDomain('general')
+    setCurrentExcitechGatewayAgent('assistant')
   })
 
   afterEach(() => {
@@ -70,6 +79,9 @@ describe('useModelControls', () => {
     $activeSessionId.set(null)
     setCurrentModel('')
     setCurrentProvider('')
+    setCurrentExcitechGatewayMode('openai-proxy')
+    setCurrentExcitechGatewayDomain('general')
+    setCurrentExcitechGatewayAgent('assistant')
   })
 
   it('applies the global model when there is no active runtime session', async () => {
@@ -167,6 +179,53 @@ describe('useModelControls', () => {
     expect($currentProvider.get()).toBe('anthropic')
     expect(requestGateway).not.toHaveBeenCalled()
     expect(setGlobalModel).not.toHaveBeenCalled()
+  })
+
+  it('updates live excitech session transport settings after switching model', async () => {
+    const requestGateway = vi.fn(async () => ({ key: 'model', value: 'general-main' }) as never)
+    let controls!: Controls
+
+    render(
+      <Harness
+        activeSessionId="session-1"
+        onReady={value => (controls = value)}
+        requestGateway={requestGateway}
+      />
+    )
+
+    await expect(
+      controls.selectModel({
+        model: 'general-main',
+        provider: 'excitech-gateway',
+        excitechGatewayMode: 'ai-chat',
+        excitechGatewayDomain: 'general',
+        excitechGatewayAgent: 'assistant'
+      })
+    ).resolves.toBe(true)
+
+    expect(requestGateway).toHaveBeenNthCalledWith(1, 'config.set', {
+      session_id: 'session-1',
+      key: 'model',
+      value: 'general-main --provider excitech-gateway'
+    })
+    expect(requestGateway).toHaveBeenNthCalledWith(2, 'config.set', {
+      session_id: 'session-1',
+      key: 'excitech_gateway_mode',
+      value: 'ai-chat'
+    })
+    expect(requestGateway).toHaveBeenNthCalledWith(3, 'config.set', {
+      session_id: 'session-1',
+      key: 'excitech_gateway_domain',
+      value: 'general'
+    })
+    expect(requestGateway).toHaveBeenNthCalledWith(4, 'config.set', {
+      session_id: 'session-1',
+      key: 'excitech_gateway_agent',
+      value: 'assistant'
+    })
+    expect($currentExcitechGatewayMode.get()).toBe('ai-chat')
+    expect($currentExcitechGatewayDomain.get()).toBe('general')
+    expect($currentExcitechGatewayAgent.get()).toBe('assistant')
   })
 
   it('seeds an empty composer model from global but never clobbers a pick', async () => {
