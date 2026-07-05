@@ -1,0 +1,3 @@
+import test from 'node:test'; import assert from 'node:assert/strict'; import {spawnSync} from 'node:child_process'; import fs from 'node:fs';
+test('validator rejects no timezone',()=>{const f='/tmp/repliz-invalid.json';fs.writeFileSync(f,JSON.stringify({accountId:'a',type:'image',scheduleAt:'2026-06-27T09:00:00',medias:[{url:'https://x/a.jpg',type:'image'}]}));const r=spawnSync('node',['scripts/validate-content.mjs',f],{cwd:process.cwd()});assert.notEqual(r.status,0)});
+test('validator accepts well-formed example',()=>{const r=spawnSync('node',['scripts/validate-content.mjs','examples/instagram-album.json'],{cwd:process.cwd()});assert.equal(r.status,0)});
