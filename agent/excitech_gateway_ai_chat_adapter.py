@@ -103,6 +103,16 @@ def _render_tool_hints(tools: Any) -> str:
     )
 
 
+def _render_gateway_tool_guidance() -> str:
+    return (
+        "Excitech Gateway tool guidance:\n"
+        "- Use news.search for fresh headlines, company news, earnings, market-moving stories, or other news-specific requests.\n"
+        "- Use websearch.search for broader public web evidence, verification, or current facts outside news.\n"
+        "- Keep tool arguments minimal and only call a tool when external evidence is needed.\n"
+        "- If the answer is self-contained, respond directly without tools."
+    )
+
+
 def _render_transcript(messages: list[dict[str, Any]]) -> str:
     lines: list[str] = []
     for message in messages:
@@ -140,6 +150,7 @@ def _build_input_text(messages: list[dict[str, Any]], tools: Any) -> str:
     tool_hints = _render_tool_hints(tools)
     if tool_hints:
         sections.append(tool_hints)
+    sections.append(_render_gateway_tool_guidance())
     return "\n\n".join(section for section in sections if section).strip()
 
 
