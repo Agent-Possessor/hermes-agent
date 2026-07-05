@@ -13,6 +13,9 @@ import { $activeGatewayProfile, $newChatProfile, ensureGatewayProfile, normalize
 import { resolveNewSessionCwd, tombstoneSessions, untombstoneSessions } from '@/store/projects'
 import {
   $currentCwd,
+  $currentExcitechGatewayAgent,
+  $currentExcitechGatewayDomain,
+  $currentExcitechGatewayMode,
   $currentFastMode,
   $currentModel,
   $currentProvider,
@@ -173,12 +176,22 @@ export function useSessionActions({
         const uiProvider = $currentProvider.get().trim()
         const uiEffort = $currentReasoningEffort.get().trim()
         const uiFast = $currentFastMode.get()
+        const uiExcitechMode = $currentExcitechGatewayMode.get().trim() || 'openai-proxy'
+        const uiExcitechDomain = $currentExcitechGatewayDomain.get().trim() || 'general'
+        const uiExcitechAgent = $currentExcitechGatewayAgent.get().trim() || 'assistant'
 
         const created = await requestGateway<SessionCreateResponse>('session.create', {
           cols: 96,
           ...(cwd && { cwd }),
           ...(newChatProfile ? { profile: newChatProfile } : {}),
           ...(uiModel ? { model: uiModel, ...(uiProvider ? { provider: uiProvider } : {}) } : {}),
+          ...(uiProvider === 'excitech-gateway'
+            ? {
+                excitech_gateway_mode: uiExcitechMode,
+                excitech_gateway_domain: uiExcitechDomain,
+                excitech_gateway_agent: uiExcitechAgent
+              }
+            : {}),
           ...(uiEffort ? { reasoning_effort: uiEffort } : {}),
           ...(uiFast ? { fast: true } : {})
         })

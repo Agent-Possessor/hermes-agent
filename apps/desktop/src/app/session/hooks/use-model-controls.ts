@@ -4,10 +4,25 @@ import { useCallback } from 'react'
 import { getGlobalModelInfo } from '@/hermes'
 import { useI18n } from '@/i18n'
 import { notifyError } from '@/store/notifications'
-import { $activeSessionId, $currentModel, $currentProvider, setCurrentModel, setCurrentProvider } from '@/store/session'
+import {
+  $activeSessionId,
+  $currentExcitechGatewayAgent,
+  $currentExcitechGatewayDomain,
+  $currentExcitechGatewayMode,
+  $currentModel,
+  $currentProvider,
+  setCurrentExcitechGatewayAgent,
+  setCurrentExcitechGatewayDomain,
+  setCurrentExcitechGatewayMode,
+  setCurrentModel,
+  setCurrentProvider
+} from '@/store/session'
 import type { ModelOptionsResponse } from '@/types/hermes'
 
 interface ModelSelection {
+  excitechGatewayAgent?: string
+  excitechGatewayDomain?: string
+  excitechGatewayMode?: string
   model: string
   provider: string
 }
@@ -79,11 +94,20 @@ export function useModelControls({ activeSessionId, queryClient, requestGateway 
       // Snapshot for rollback: the switch is applied optimistically, so a
       // failure must restore the prior model/provider (store + query cache)
       // rather than leave the UI showing a model the backend never selected.
+      const nextExcitechMode = (selection.excitechGatewayMode || 'openai-proxy').trim() || 'openai-proxy'
+      const nextExcitechDomain = (selection.excitechGatewayDomain || 'general').trim() || 'general'
+      const nextExcitechAgent = (selection.excitechGatewayAgent || 'assistant').trim() || 'assistant'
       const prevModel = $currentModel.get()
       const prevProvider = $currentProvider.get()
+      const prevExcitechMode = $currentExcitechGatewayMode.get()
+      const prevExcitechDomain = $currentExcitechGatewayDomain.get()
+      const prevExcitechAgent = $currentExcitechGatewayAgent.get()
 
       setCurrentModel(selection.model)
       setCurrentProvider(selection.provider)
+      setCurrentExcitechGatewayMode(nextExcitechMode)
+      setCurrentExcitechGatewayDomain(nextExcitechDomain)
+      setCurrentExcitechGatewayAgent(nextExcitechAgent)
       updateModelOptionsCache(selection.provider, selection.model, !activeSessionId)
 
       // No live session yet: the pick is pure UI state. session.create reads
@@ -99,12 +123,33 @@ export function useModelControls({ activeSessionId, queryClient, requestGateway 
           value: `${selection.model} --provider ${selection.provider}`
         })
 
+        if (selection.provider === 'excitech-gateway') {
+          await requestGateway('config.set', {
+            session_id: activeSessionId,
+            key: 'excitech_gateway_mode',
+            value: nextExcitechMode
+          })
+          await requestGateway('config.set', {
+            session_id: activeSessionId,
+            key: 'excitech_gateway_domain',
+            value: nextExcitechDomain
+          })
+          await requestGateway('config.set', {
+            session_id: activeSessionId,
+            key: 'excitech_gateway_agent',
+            value: nextExcitechAgent
+          })
+        }
+
         void queryClient.invalidateQueries({ queryKey: ['model-options', activeSessionId] })
 
         return true
       } catch (err) {
         setCurrentModel(prevModel)
         setCurrentProvider(prevProvider)
+        setCurrentExcitechGatewayMode(prevExcitechMode)
+        setCurrentExcitechGatewayDomain(prevExcitechDomain)
+        setCurrentExcitechGatewayAgent(prevExcitechAgent)
         updateModelOptionsCache(prevProvider, prevModel, !activeSessionId)
         notifyError(err, copy.modelSwitchFailed)
 

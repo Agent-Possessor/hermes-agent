@@ -165,18 +165,18 @@ export default function ConfigPage() {
     api
       .getConfig()
       .then(setConfig)
-      .catch(() => {});
+      .catch(() => { });
     api
       .getSchema()
       .then((resp) => {
         setSchema(resp.fields as Record<string, Record<string, unknown>>);
         setCategoryOrder(resp.category_order ?? []);
       })
-      .catch(() => {});
+      .catch(() => { });
     api
       .getDefaults()
       .then(setDefaults)
-      .catch(() => {});
+      .catch(() => { });
     // getConfigRaw is profile-scoped (fetchJSON appends ?profile=), so its
     // `path` reflects the switched profile's config.yaml. /api/status's
     // config_path is machine-global (the dashboard's own profile) — wrong
@@ -186,11 +186,11 @@ export default function ConfigPage() {
       .then((resp) => {
         if (resp.path) setConfigPath(resp.path);
       })
-      .catch(() => {});
+      .catch(() => { });
     api
       .getStatus()
       .then((resp) => setConfigPath((prev) => prev ?? resp.config_path))
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   // Set active category when categories load
@@ -288,7 +288,7 @@ export default function ConfigPage() {
       api
         .getConfig()
         .then(setConfig)
-        .catch(() => {});
+        .catch(() => { });
     } catch (e) {
       showToast(`${t.config.failedToSaveYaml}: ${e}`, "error");
     } finally {
@@ -429,7 +429,7 @@ export default function ConfigPage() {
       <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <div className="flex min-w-0 items-center gap-2 sm:flex-1">
           <Settings2 className="h-4 w-4 shrink-0 text-muted-foreground" />
-          <code className="min-w-0 flex-1 break-words text-xs text-muted-foreground bg-muted/50 px-2 py-0.5">
+          <code className="min-w-0 flex-1 wrap-break-word text-xs text-muted-foreground bg-muted/50 px-2 py-0.5">
             {configPath ?? t.config.configPath}
           </code>
         </div>
@@ -575,11 +575,10 @@ export default function ConfigPage() {
                           {prettyCategoryName(cat)}
                         </span>
                         <span
-                          className={`text-xs tabular-nums ${
-                            isActive
+                          className={`text-xs tabular-nums ${isActive
                               ? "text-text-secondary"
                               : "text-text-tertiary"
-                          }`}
+                            }`}
                         >
                           {categoryCounts[cat] || 0}
                         </span>
@@ -659,9 +658,8 @@ export default function ConfigPage() {
             ? t.config.searchResults
             : prettyCategoryName(activeCategory),
         )}
-        description={`This will reset ${
-          (isSearching ? searchMatchedFields : activeFields).length
-        } field(s) to their default values.`}
+        description={`This will reset ${(isSearching ? searchMatchedFields : activeFields).length
+          } field(s) to their default values.`}
         destructive
         confirmLabel={t.config.resetDefaults}
       />

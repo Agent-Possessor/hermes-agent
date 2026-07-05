@@ -58,6 +58,9 @@ interface ConfigSetResponse extends ExpensiveModelConfirmResponse {
 }
 
 interface PendingExpensiveConfirm {
+  excitechGatewayAgent?: string;
+  excitechGatewayDomain?: string;
+  excitechGatewayMode?: string;
   message: string;
   model: string;
   persistGlobal: boolean;
@@ -74,6 +77,9 @@ interface Props {
   loader?(): Promise<ModelOptionsResponse>;
   onApply?(args: {
     confirmExpensiveModel?: boolean;
+    excitechGatewayAgent?: string;
+    excitechGatewayDomain?: string;
+    excitechGatewayMode?: string;
     provider: string;
     model: string;
     persistGlobal: boolean;
@@ -86,6 +92,10 @@ interface Props {
   title?: string;
   /** If true, hides "Persist globally" checkbox — always saves to config.yaml. */
   alwaysGlobal?: boolean;
+  allowExcitechGatewaySettings?: boolean;
+  initialExcitechGatewayMode?: string;
+  initialExcitechGatewayDomain?: string;
+  initialExcitechGatewayAgent?: string;
 }
 
 export function ModelPickerDialog(props: Props) {
@@ -98,6 +108,10 @@ export function ModelPickerDialog(props: Props) {
     onClose,
     title = "Switch Model",
     alwaysGlobal = false,
+    allowExcitechGatewaySettings = false,
+    initialExcitechGatewayMode = "openai-proxy",
+    initialExcitechGatewayDomain = "general",
+    initialExcitechGatewayAgent = "assistant",
   } = props;
   const standalone = !!loader && !!onApply;
 
@@ -111,6 +125,12 @@ export function ModelPickerDialog(props: Props) {
   const [query, setQuery] = useState("");
   const [persistGlobal, setPersistGlobal] = useState(alwaysGlobal);
   const [applying, setApplying] = useState(false);
+  const [excitechGatewayMode, setExcitechGatewayMode] =
+    useState(initialExcitechGatewayMode || "openai-proxy");
+  const [excitechGatewayDomain, setExcitechGatewayDomain] =
+    useState(initialExcitechGatewayDomain || "general");
+  const [excitechGatewayAgent, setExcitechGatewayAgent] =
+    useState(initialExcitechGatewayAgent || "assistant");
   const [pendingConfirm, setPendingConfirm] =
     useState<PendingExpensiveConfirm | null>(null);
   const closedRef = useRef(false);
@@ -122,9 +142,9 @@ export function ModelPickerDialog(props: Props) {
     const promise = standalone
       ? (loader as () => Promise<ModelOptionsResponse>)()
       : (gw as GatewayClient).request<ModelOptionsResponse>(
-          "model.options",
-          sessionId ? { session_id: sessionId } : {},
-        );
+        "model.options",
+        sessionId ? { session_id: sessionId } : {},
+      );
 
     promise
       .then((r) => {
@@ -168,6 +188,33 @@ export function ModelPickerDialog(props: Props) {
     () => providers.find((p) => p.slug === selectedSlug) ?? null,
     [providers, selectedSlug],
   );
+  const selectedProviderSlug = selectedProvider?.slug ?? "";
+  const selectedProviderIsExcitech =
+    allowExcitechGatewaySettings &&
+    selectedProviderSlug === "excitech-gateway";
+
+  useEffect(() => {
+    // Providers haven't loaded yet (selectedSlug starts as "" until the
+    // fetch resolves) — don't clobber the seeded initial*/config values
+    // with the hardcoded defaults while we wait.
+    if (!selectedProviderSlug) return;
+    if (selectedProviderSlug !== "excitech-gateway") {
+      setExcitechGatewayMode("openai-proxy");
+      setExcitechGatewayDomain("general");
+      setExcitechGatewayAgent("assistant");
+      return;
+    }
+
+    const lowered = selectedModel.toLowerCase();
+    setExcitechGatewayAgent((current) => {
+      if (current && current !== "assistant") return current;
+      if (lowered.includes("reasoning")) return "analyst";
+      if (lowered.includes("coder") || lowered.includes("code")) {
+        return "developer";
+      }
+      return "assistant";
+    });
+  }, [selectedModel, selectedProviderSlug]);
 
   const models = useMemo(
     () => selectedProvider?.models ?? [],
@@ -209,6 +256,21 @@ export function ModelPickerDialog(props: Props) {
     const providerSlug = forced?.provider ?? selectedProvider?.slug ?? "";
     const model = forced?.model ?? selectedModel;
     const shouldPersistGlobal = forced?.persistGlobal ?? persistGlobal;
+    const providerUsesExcitechSettings =
+      allowExcitechGatewaySettings && providerSlug === "excitech-gateway";
+    const gatewayMode =
+      forced?.excitechGatewayMode ??
+      (providerUsesExcitechSettings ? excitechGatewayMode : undefined);
+    const gatewayDomain =
+      forced?.excitechGatewayDomain ??
+      (providerUsesExcitechSettings
+        ? excitechGatewayDomain.trim()
+        : undefined);
+    const gatewayAgent =
+      forced?.excitechGatewayAgent ??
+      (providerUsesExcitechSettings
+        ? excitechGatewayAgent.trim()
+        : undefined);
 
     if (!providerSlug || !model || applying) return;
 
@@ -217,12 +279,18 @@ export function ModelPickerDialog(props: Props) {
       try {
         const result = await onApply({
           confirmExpensiveModel,
+          excitechGatewayAgent: gatewayAgent || undefined,
+          excitechGatewayDomain: gatewayDomain || undefined,
+          excitechGatewayMode: gatewayMode || undefined,
           provider: providerSlug,
           model,
           persistGlobal: shouldPersistGlobal,
         });
         if (result?.confirm_required) {
           setPendingConfirm({
+            excitechGatewayAgent: gatewayAgent || undefined,
+            excitechGatewayDomain: gatewayDomain || undefined,
+            excitechGatewayMode: gatewayMode || undefined,
             provider: providerSlug,
             model,
             persistGlobal: shouldPersistGlobal,
@@ -288,7 +356,7 @@ export function ModelPickerDialog(props: Props) {
   // Toast.tsx for the same pattern.
   return createPortal(
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-background/85 p-4"
+      className="fixed inset-0 z-100 flex items-center justify-center bg-background/85 backdrop-blur-sm p-4"
       onClick={(e) => e.target === e.currentTarget && onClose()}
       role="dialog"
       aria-modal="true"
@@ -364,6 +432,54 @@ export function ModelPickerDialog(props: Props) {
             }}
           />
         </div>
+
+        {selectedProviderIsExcitech && (
+          <section className="border-t border-border px-5 py-4">
+            <div className="mb-3">
+              <h3 className="font-mondwest text-sm tracking-wider">
+                Excitech Gateway Mode
+              </h3>
+              <p className="mt-1 text-xs text-muted-foreground">
+                `/v1/ai/chat` is a transport mode, not a separate model entry.
+              </p>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="excitech-gateway-mode">Mode</Label>
+                <select
+                  id="excitech-gateway-mode"
+                  className="h-9 w-full border border-border bg-background px-3 text-sm"
+                  onChange={(e) => setExcitechGatewayMode(e.target.value)}
+                  value={excitechGatewayMode}
+                >
+                  <option value="openai-proxy">OpenAI proxy</option>
+                  <option value="ai-chat">AI chat orchestration</option>
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="excitech-gateway-domain">Domain</Label>
+                <Input
+                  id="excitech-gateway-domain"
+                  onChange={(e) => setExcitechGatewayDomain(e.target.value)}
+                  placeholder="general"
+                  value={excitechGatewayDomain}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="excitech-gateway-agent">Agent</Label>
+                <Input
+                  id="excitech-gateway-agent"
+                  onChange={(e) => setExcitechGatewayAgent(e.target.value)}
+                  placeholder="assistant"
+                  value={excitechGatewayAgent}
+                />
+              </div>
+            </div>
+          </section>
+        )}
 
         <footer className="border-t border-border p-3 flex items-center justify-between gap-3 flex-wrap">
           {alwaysGlobal ? (
@@ -468,9 +584,8 @@ function ProviderColumn({
             key={p.slug}
             active={active}
             onClick={() => onSelect(p.slug)}
-            className={`items-start text-xs border-l-2 ${
-              active ? "border-l-primary" : "border-l-transparent"
-            }`}
+            className={`items-start text-xs border-l-2 ${active ? "border-l-primary" : "border-l-transparent"
+              }`}
           >
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5">

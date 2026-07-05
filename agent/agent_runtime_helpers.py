@@ -25,6 +25,7 @@ from __future__ import annotations
 import copy
 import json
 import logging
+import os
 import re
 import time
 from datetime import datetime
@@ -1618,6 +1619,7 @@ def anthropic_prompt_cache_policy(
 
 def create_openai_client(agent, client_kwargs: dict, *, reason: str, shared: bool) -> Any:
     from agent.auxiliary_client import _validate_base_url, _validate_proxy_env_urls
+    from hermes_cli.config import cfg_get, load_config
     from agent.ssl_verify import resolve_httpx_verify
     # Treat client_kwargs as read-only. Callers pass agent._client_kwargs (or shallow
     # copies of it) in; any in-place mutation leaks back into the stored dict and is
@@ -1667,6 +1669,72 @@ def create_openai_client(agent, client_kwargs: dict, *, reason: str, shared: boo
                 agent._client_log_context(),
             )
             return client
+    if agent.provider == "excitech-gateway":
+        from agent.excitech_gateway_adapter import ExcitechGatewayClient
+        from agent.excitech_gateway_ai_chat_adapter import ExcitechGatewayAIChatClient
+
+        safe_kwargs = {
+            k: v
+            for k, v in client_kwargs.items()
+            if k in {"api_key", "base_url", "default_headers", "timeout", "http_client"}
+        }
+        if "http_client" not in safe_kwargs:
+            keepalive_http = agent._build_keepalive_http_client(client_kwargs.get("base_url", ""))
+            if keepalive_http is not None:
+                safe_kwargs["http_client"] = keepalive_http
+
+        cfg = load_config() or {}
+        gateway_mode = str(
+            getattr(agent, "_excitech_gateway_mode", None)
+            or os.getenv("EXCITECH_GATEWAY_MODE")
+            or cfg_get(cfg, "model", "excitech_gateway_mode", default="openai-proxy")
+            or "openai-proxy"
+        ).strip().lower()
+        gateway_domain = str(
+            getattr(agent, "_excitech_gateway_domain", None)
+            or os.getenv("EXCITECH_GATEWAY_DOMAIN")
+            or cfg_get(cfg, "model", "excitech_gateway_domain", default="general")
+            or "general"
+        ).strip()
+        gateway_agent = str(
+            getattr(agent, "_excitech_gateway_agent", None)
+            or os.getenv("EXCITECH_GATEWAY_AGENT")
+            or cfg_get(cfg, "model", "excitech_gateway_agent", default="")
+            or ""
+        ).strip()
+        provider_policy = (
+            cfg_get(cfg, "model", "excitech_gateway_provider_policy", default=None)
+        )
+
+        if gateway_mode == "ai-chat":
+            safe_kwargs["agent_ref"] = agent
+            safe_kwargs["gateway_domain"] = gateway_domain
+            safe_kwargs["gateway_agent"] = gateway_agent
+            safe_kwargs["provider_policy"] = provider_policy
+            client = ExcitechGatewayAIChatClient(**safe_kwargs)
+            _ra().logger.info(
+                "Excitech gateway ai-chat client created (%s, shared=%s, domain=%s) %s",
+                reason,
+                shared,
+                gateway_domain or "-",
+                agent._client_log_context(),
+            )
+            return client
+
+        if gateway_mode not in {"", "openai-proxy"}:
+            _ra().logger.warning(
+                "Unknown excitech gateway mode %r; falling back to openai-proxy",
+                gateway_mode,
+            )
+
+        client = ExcitechGatewayClient(**safe_kwargs)
+        _ra().logger.info(
+            "Excitech gateway client created (%s, shared=%s) %s",
+            reason,
+            shared,
+            agent._client_log_context(),
+        )
+        return client
     # Inject TCP keepalives so the kernel detects dead provider connections
     # instead of letting them sit silently in CLOSE-WAIT (#10324).  Without
     # this, a peer that drops mid-stream leaves the socket in a state where

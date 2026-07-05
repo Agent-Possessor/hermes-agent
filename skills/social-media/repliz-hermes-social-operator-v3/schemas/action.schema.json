@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Repliz agent action",
+  "type": "object",
+  "required": ["action", "method", "path", "payload", "risk"],
+  "properties": {
+    "action": {"type": "string"},
+    "method": {"enum": ["GET", "POST", "PUT", "DELETE"]},
+    "path": {"type": "string", "pattern": "^/public/"},
+    "payload": {"type": ["object", "array", "null"]},
+    "risk": {"type": "array", "items": {"type": "string"}},
+    "approvalToken": {"type": "string"}
+  },
+  "additionalProperties": true
+}

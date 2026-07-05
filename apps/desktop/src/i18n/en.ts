@@ -1963,7 +1963,14 @@ export const en: Translations = {
     proNeedsSubscription: 'Pro models need a paid Nous subscription.',
     free: 'Free',
     freeTier: 'Free tier',
-    priceTitle: 'Input / Output price per million tokens'
+    priceTitle: 'Input / Output price per million tokens',
+    excitechGatewayTitle: 'Excitech Gateway mode',
+    excitechGatewayDescription: 'Applies when you pick an Excitech model. `/v1/ai/chat` is a transport mode, not a separate model row.',
+    excitechGatewayModeLabel: 'Mode',
+    excitechGatewayModeOpenAIProxy: 'OpenAI proxy',
+    excitechGatewayModeAIChat: 'AI chat orchestration',
+    excitechGatewayDomainLabel: 'Domain',
+    excitechGatewayAgentLabel: 'Agent'
   },
 
   modelVisibility: {

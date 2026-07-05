@@ -20,6 +20,9 @@ const COMPOSER_MODEL_KEY = 'hermes.desktop.composer.model'
 const COMPOSER_PROVIDER_KEY = 'hermes.desktop.composer.provider'
 const COMPOSER_EFFORT_KEY = 'hermes.desktop.composer.reasoning-effort'
 const COMPOSER_FAST_KEY = 'hermes.desktop.composer.fast'
+const COMPOSER_EXCITECH_MODE_KEY = 'hermes.desktop.composer.excitech.mode'
+const COMPOSER_EXCITECH_DOMAIN_KEY = 'hermes.desktop.composer.excitech.domain'
+const COMPOSER_EXCITECH_AGENT_KEY = 'hermes.desktop.composer.excitech.agent'
 
 // The last chat the user had open, so a relaunch lands back on it instead of an
 // empty new-chat. Stored (not runtime) id — the route is keyed by stored id.
@@ -263,6 +266,9 @@ export const $resumeExhaustedSessionId = atom<string | null>(null)
 export const $currentModel = atom(storedString(COMPOSER_MODEL_KEY) ?? '')
 export const $currentProvider = atom(storedString(COMPOSER_PROVIDER_KEY) ?? '')
 export const $currentReasoningEffort = atom(storedString(COMPOSER_EFFORT_KEY) ?? '')
+export const $currentExcitechGatewayMode = atom(storedString(COMPOSER_EXCITECH_MODE_KEY) ?? 'openai-proxy')
+export const $currentExcitechGatewayDomain = atom(storedString(COMPOSER_EXCITECH_DOMAIN_KEY) ?? 'general')
+export const $currentExcitechGatewayAgent = atom(storedString(COMPOSER_EXCITECH_AGENT_KEY) ?? 'assistant')
 export const $currentServiceTier = atom('')
 export const $currentFastMode = atom(storedBoolean(COMPOSER_FAST_KEY, false))
 // Effective approval-bypass state mirrored from the gateway (session.info).
@@ -322,6 +328,21 @@ export const setCurrentProvider = (next: Updater<string>) => {
 export const setCurrentReasoningEffort = (next: Updater<string>) => {
   updateAtom($currentReasoningEffort, next)
   persistString(COMPOSER_EFFORT_KEY, $currentReasoningEffort.get() || null)
+}
+
+export const setCurrentExcitechGatewayMode = (next: Updater<string>) => {
+  updateAtom($currentExcitechGatewayMode, next)
+  persistString(COMPOSER_EXCITECH_MODE_KEY, $currentExcitechGatewayMode.get().trim() || 'openai-proxy')
+}
+
+export const setCurrentExcitechGatewayDomain = (next: Updater<string>) => {
+  updateAtom($currentExcitechGatewayDomain, next)
+  persistString(COMPOSER_EXCITECH_DOMAIN_KEY, $currentExcitechGatewayDomain.get().trim() || 'general')
+}
+
+export const setCurrentExcitechGatewayAgent = (next: Updater<string>) => {
+  updateAtom($currentExcitechGatewayAgent, next)
+  persistString(COMPOSER_EXCITECH_AGENT_KEY, $currentExcitechGatewayAgent.get().trim() || 'assistant')
 }
 
 export const setCurrentServiceTier = (next: Updater<string>) => updateAtom($currentServiceTier, next)

@@ -16,6 +16,7 @@ import { api } from "@/lib/api";
 import type {
   AuxiliaryModelsResponse,
   AuxiliaryTaskAssignment,
+  ModelInfoResponse,
   MoaConfigResponse,
   MoaModelSlot,
   ModelsAnalyticsModelEntry,
@@ -575,7 +576,7 @@ function AuxiliaryTasksModal({
   return (
     <div
       ref={modalRef}
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-background/85 p-4"
+      className="fixed inset-0 z-100 flex items-center justify-center bg-background/85 backdrop-blur-sm p-4"
       onClick={(e) => e.target === e.currentTarget && onClose()}
       role="dialog"
       aria-modal="true"
@@ -658,15 +659,25 @@ function AuxiliaryTasksModal({
         {picker && picker.kind === "aux" && (
           <ModelPickerDialog
             key={`picker-${refreshKey}`}
+            allowExcitechGatewaySettings={false}
             loader={api.getModelOptions}
             alwaysGlobal
-            title={`Set Auxiliary: ${
-              AUX_TASKS.find((t) => t.key === picker.task)?.label ??
+            title={`Set Auxiliary: ${AUX_TASKS.find((t) => t.key === picker.task)?.label ??
               picker.task
-            }`}
-            onApply={async ({ provider, model, confirmExpensiveModel }) => {
+              }`}
+            onApply={async ({
+              provider,
+              model,
+              confirmExpensiveModel,
+              excitechGatewayAgent,
+              excitechGatewayDomain,
+              excitechGatewayMode,
+            }) => {
               const result = await api.setModelAssignment({
                 confirm_expensive_model: confirmExpensiveModel,
+                excitech_gateway_agent: excitechGatewayAgent,
+                excitech_gateway_domain: excitechGatewayDomain,
+                excitech_gateway_mode: excitechGatewayMode,
                 scope: "auxiliary",
                 task: picker.task,
                 provider,
@@ -868,10 +879,12 @@ function MoaModelsModal({
 
 function ModelSettingsPanel({
   aux,
+  modelInfo,
   refreshKey,
   onSaved,
 }: {
   aux: AuxiliaryModelsResponse | null;
+  modelInfo: ModelInfoResponse | null;
   refreshKey: number;
   onSaved(): void;
 }) {
@@ -885,6 +898,13 @@ function ModelSettingsPanel({
 
   const mainProv = aux?.main.provider ?? "";
   const mainModel = aux?.main.model ?? "";
+  const showExcitechModeSummary =
+    modelInfo?.provider === "excitech-gateway" &&
+    modelInfo?.excitech_gateway_mode === "ai-chat";
+  const excitechTransportLabel =
+    modelInfo?.excitech_gateway_mode === "ai-chat"
+      ? "/v1/ai/chat"
+      : "/v1/openai";
 
   useEffect(() => {
     api.getMoaModels().then(setMoa).catch(() => setMoa(null));
@@ -896,8 +916,14 @@ function ModelSettingsPanel({
     provider,
     model,
     confirmExpensiveModel,
+    excitechGatewayAgent,
+    excitechGatewayDomain,
+    excitechGatewayMode,
   }: {
     confirmExpensiveModel?: boolean;
+    excitechGatewayAgent?: string;
+    excitechGatewayDomain?: string;
+    excitechGatewayMode?: string;
     scope: "main" | "auxiliary";
     task: string;
     provider: string;
@@ -905,6 +931,9 @@ function ModelSettingsPanel({
   }) => {
     const result = await api.setModelAssignment({
       confirm_expensive_model: confirmExpensiveModel,
+      excitech_gateway_agent: excitechGatewayAgent,
+      excitech_gateway_domain: excitechGatewayDomain,
+      excitech_gateway_mode: excitechGatewayMode,
       scope,
       task,
       provider,
@@ -925,7 +954,7 @@ function ModelSettingsPanel({
         <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
           <Settings2 className="h-4 w-4 shrink-0 text-muted-foreground" />
           <CardTitle className="text-sm">Model Settings</CardTitle>
-          <span className="max-w-full min-w-0 text-xs text-text-secondary [overflow-wrap:anywhere]">
+          <span className="max-w-full min-w-0 text-xs text-text-secondary wrap-anywhere">
             applies to new sessions
           </span>
         </div>
@@ -946,6 +975,20 @@ function ModelSettingsPanel({
               {mainProv && mainModel && " · "}
               {mainModel || "(unset)"}
             </div>
+            {showExcitechModeSummary && (
+              <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1 text-[11px] text-text-secondary">
+                <Badge tone="warning" className="px-1.5 py-0 text-[10px]">
+                  AI chat
+                </Badge>
+                <span>transport {excitechTransportLabel}</span>
+                {modelInfo?.excitech_gateway_domain && (
+                  <span>domain {modelInfo.excitech_gateway_domain}</span>
+                )}
+                {modelInfo?.excitech_gateway_agent && (
+                  <span>agent {modelInfo.excitech_gateway_agent}</span>
+                )}
+              </div>
+            )}
           </div>
           <Button
             size="sm"
@@ -1009,14 +1052,34 @@ function ModelSettingsPanel({
         {picker && (
           <ModelPickerDialog
             key={`picker-${refreshKey}`}
+            allowExcitechGatewaySettings
             loader={api.getModelOptions}
             alwaysGlobal
+            initialExcitechGatewayAgent={
+              modelInfo?.excitech_gateway_agent || "assistant"
+            }
+            initialExcitechGatewayDomain={
+              modelInfo?.excitech_gateway_domain || "general"
+            }
+            initialExcitechGatewayMode={
+              modelInfo?.excitech_gateway_mode || "openai-proxy"
+            }
             title="Set Main Model"
-            onApply={async ({ provider, model, confirmExpensiveModel }) => {
+            onApply={async ({
+              provider,
+              model,
+              confirmExpensiveModel,
+              excitechGatewayAgent,
+              excitechGatewayDomain,
+              excitechGatewayMode,
+            }) => {
               const result = await applyAssignment({
                 confirmExpensiveModel,
                 scope: "main",
                 task: "",
+                excitechGatewayAgent,
+                excitechGatewayDomain,
+                excitechGatewayMode,
                 provider,
                 model,
               });
@@ -1066,6 +1129,7 @@ export default function ModelsPage() {
   const [days, setDays] = useState(30);
   const [data, setData] = useState<ModelsAnalyticsResponse | null>(null);
   const [aux, setAux] = useState<AuxiliaryModelsResponse | null>(null);
+  const [modelInfo, setModelInfo] = useState<ModelInfoResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saveKey, setSaveKey] = useState(0);
@@ -1095,10 +1159,12 @@ export default function ModelsPage() {
     Promise.all([
       api.getModelsAnalytics(days),
       api.getAuxiliaryModels().catch(() => null),
+      api.getModelInfo().catch(() => null),
     ])
-      .then(([models, auxData]) => {
+      .then(([models, auxData, info]) => {
         setData(models);
         setAux(auxData);
+        setModelInfo(info);
       })
       .catch((err) => setError(String(err)))
       .finally(() => setLoading(false));
@@ -1108,14 +1174,22 @@ export default function ModelsPage() {
     api
       .getAuxiliaryModels()
       .then(setAux)
-      .catch(() => {});
+      .catch(() => { });
+  }, []);
+
+  const refreshModelInfo = useCallback(() => {
+    api
+      .getModelInfo()
+      .then(setModelInfo)
+      .catch(() => { });
   }, []);
 
   const onAssigned = useCallback(() => {
     // Reload aux state after any assignment change.
     refreshAux();
+    refreshModelInfo();
     setSaveKey((k) => k + 1);
-  }, [refreshAux]);
+  }, [refreshAux, refreshModelInfo]);
 
   useLayoutEffect(() => {
     // Period selector + refresh both live in afterTitle so the controls
@@ -1169,6 +1243,7 @@ export default function ModelsPage() {
       if (Date.now() - last < 1000) return;
       last = Date.now();
       refreshAux();
+      refreshModelInfo();
     };
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onFocus);
@@ -1176,7 +1251,7 @@ export default function ModelsPage() {
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onFocus);
     };
-  }, [refreshAux]);
+  }, [refreshAux, refreshModelInfo]);
 
   return (
     <div className="flex min-w-0 max-w-full flex-col gap-6">
@@ -1185,6 +1260,7 @@ export default function ModelsPage() {
       <div className="grid min-w-0 gap-6 lg:grid-cols-2">
         <ModelSettingsPanel
           aux={aux}
+          modelInfo={modelInfo}
           refreshKey={saveKey}
           onSaved={onAssigned}
         />
@@ -1196,8 +1272,8 @@ export default function ModelsPage() {
                 <Stats
                   className="min-w-0"
                   items={
-                  showTokens
-                    ? [
+                    showTokens
+                      ? [
                         {
                           label: t.models.modelsUsed,
                           value: String(data.totals.distinct_models),
@@ -1225,7 +1301,7 @@ export default function ModelsPage() {
                           value: String(data.totals.total_sessions),
                         },
                       ]
-                    : [
+                      : [
                         {
                           label: t.models.modelsUsed,
                           value: String(data.totals.distinct_models),
@@ -1235,8 +1311,8 @@ export default function ModelsPage() {
                           value: String(data.totals.total_sessions),
                         },
                       ]
-                }
-              />
+                  }
+                />
               </div>
               {!showTokens && (
                 <p className="mt-4 text-xs text-text-tertiary leading-relaxed">

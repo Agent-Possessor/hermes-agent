@@ -118,6 +118,74 @@ def _prompt_auth_credentials_choice(title: str) -> str:
     return "use"
 
 
+def _default_excitech_gateway_agent(model_name: str, current_agent: str = "") -> str:
+    current = str(current_agent or "").strip()
+    if current:
+        return current
+    lowered = str(model_name or "").strip().lower()
+    if "reasoning" in lowered:
+        return "analyst"
+    if "coder" in lowered or "code" in lowered:
+        return "developer"
+    return "assistant"
+
+
+def _prompt_excitech_gateway_mode(config: dict, selected_model: str) -> dict[str, str]:
+    """Prompt for Excitech gateway transport mode after model selection.
+
+    `/v1/ai/chat` is an orchestration transport, not a separate model, so the
+    right UX is a second step that asks how Hermes should talk to the gateway.
+    """
+    from hermes_cli.main import _prompt_provider_choice
+
+    model_cfg = config.get("model")
+    if not isinstance(model_cfg, dict):
+        model_cfg = {}
+
+    current_mode = str(model_cfg.get("excitech_gateway_mode") or "openai-proxy").strip().lower()
+    current_domain = str(model_cfg.get("excitech_gateway_domain") or "general").strip() or "general"
+    current_agent = str(model_cfg.get("excitech_gateway_agent") or "").strip()
+
+    options = [
+        "OpenAI proxy (/v1/openai/chat/completions) — safest default, best compatibility",
+        "AI chat orchestration (/v1/ai/chat) — use Excitech routing, memory, and search flow",
+    ]
+    default_idx = 1 if current_mode == "ai-chat" else 0
+    mode_idx = _prompt_provider_choice(
+        options,
+        default=default_idx,
+        title="Select Excitech gateway mode:",
+    )
+    if mode_idx is None:
+        print("No change.")
+        return {}
+
+    mode = "ai-chat" if mode_idx == 1 else "openai-proxy"
+    result = {
+        "mode": mode,
+        "domain": current_domain,
+        "agent": _default_excitech_gateway_agent(selected_model, current_agent),
+    }
+
+    if mode == "ai-chat":
+        print()
+        print("AI chat orchestration uses AI Gateway's own domain/agent router.")
+        try:
+            domain = input(f"Domain [{result['domain']}]: ").strip()
+        except (KeyboardInterrupt, EOFError):
+            domain = ""
+        if domain:
+            result["domain"] = domain
+
+        try:
+            agent_name = input(f"Agent [{result['agent']}]: ").strip()
+        except (KeyboardInterrupt, EOFError):
+            agent_name = ""
+        if agent_name:
+            result["agent"] = agent_name
+    return result
+
+
 def _model_flow_openrouter(config, current_model=""):
     """OpenRouter provider: ensure API key, then pick model."""
     from hermes_cli.main import _prompt_api_key
@@ -2810,6 +2878,9 @@ def _model_flow_api_key_provider(config, provider_id, current_model=""):
             selected = normalize_opencode_model_id(provider_id, selected)
 
         _save_model_choice(selected)
+        excitech_mode = {}
+        if provider_id == "excitech-gateway":
+            excitech_mode = _prompt_excitech_gateway_mode(config, selected)
 
         # Update config with provider, base URL, and provider-specific API mode
         cfg = load_config()
@@ -2824,10 +2895,23 @@ def _model_flow_api_key_provider(config, provider_id, current_model=""):
             model["api_mode"] = opencode_model_api_mode(provider_id, selected)
         else:
             model.pop("api_mode", None)
+        if provider_id == "excitech-gateway":
+            model["excitech_gateway_mode"] = excitech_mode.get("mode") or "openai-proxy"
+            if excitech_mode.get("domain"):
+                model["excitech_gateway_domain"] = excitech_mode["domain"]
+            elif "excitech_gateway_domain" in model:
+                del model["excitech_gateway_domain"]
+            if excitech_mode.get("agent"):
+                model["excitech_gateway_agent"] = excitech_mode["agent"]
+            elif "excitech_gateway_agent" in model:
+                del model["excitech_gateway_agent"]
         save_config(cfg)
         deactivate_provider()
 
         print(f"Default model set to: {selected} (via {pconfig.name})")
+        if provider_id == "excitech-gateway":
+            mode_label = excitech_mode.get("mode") or "openai-proxy"
+            print(f"Gateway mode set to: {mode_label}")
     else:
         print("No change.")
 

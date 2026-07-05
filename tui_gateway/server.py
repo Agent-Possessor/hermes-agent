@@ -1570,6 +1570,9 @@ def _ensure_session_db_row(session: dict) -> None:
         ("provider", "provider"),
         ("base_url", "base_url"),
         ("api_mode", "api_mode"),
+        ("excitech_gateway_mode", "excitech_gateway_mode"),
+        ("excitech_gateway_domain", "excitech_gateway_domain"),
+        ("excitech_gateway_agent", "excitech_gateway_agent"),
     ):
         if val := override.get(src_key):
             model_config[cfg_key] = str(val)
@@ -2051,6 +2054,9 @@ def _stored_session_runtime_overrides(row: dict | None) -> dict:
         provider = billing_provider
     base_url = str(model_config.get("base_url") or "").strip()
     api_mode = str(model_config.get("api_mode") or "").strip()
+    excitech_gateway_mode = str(model_config.get("excitech_gateway_mode") or "").strip().lower()
+    excitech_gateway_domain = str(model_config.get("excitech_gateway_domain") or "").strip()
+    excitech_gateway_agent = str(model_config.get("excitech_gateway_agent") or "").strip()
     reasoning_config = model_config.get("reasoning_config")
     service_tier = str(model_config.get("service_tier") or "").strip()
 
@@ -2087,6 +2093,9 @@ def _stored_session_runtime_overrides(row: dict | None) -> dict:
             "provider": provider or None,
             "base_url": base_url or None,
             "api_mode": api_mode or None,
+            "excitech_gateway_mode": excitech_gateway_mode or None,
+            "excitech_gateway_domain": excitech_gateway_domain or None,
+            "excitech_gateway_agent": excitech_gateway_agent or None,
         }
     if provider:
         overrides["provider_override"] = provider
@@ -2104,6 +2113,9 @@ def _runtime_model_config(agent, existing: dict | None = None) -> dict:
     provider = str(getattr(agent, "provider", "") or "").strip()
     base_url = str(getattr(agent, "base_url", "") or "").strip()
     api_mode = str(getattr(agent, "api_mode", "") or "").strip()
+    excitech_gateway_mode = str(getattr(agent, "_excitech_gateway_mode", "") or "").strip().lower()
+    excitech_gateway_domain = str(getattr(agent, "_excitech_gateway_domain", "") or "").strip()
+    excitech_gateway_agent = str(getattr(agent, "_excitech_gateway_agent", "") or "").strip()
     reasoning_config = getattr(agent, "reasoning_config", None)
     service_tier = getattr(agent, "service_tier", None)
 
@@ -2144,6 +2156,20 @@ def _runtime_model_config(agent, existing: dict | None = None) -> dict:
         config["api_mode"] = api_mode
     else:
         config.pop("api_mode", None)
+    if provider.strip().lower() == "excitech-gateway":
+        config["excitech_gateway_mode"] = excitech_gateway_mode or "openai-proxy"
+        if excitech_gateway_domain:
+            config["excitech_gateway_domain"] = excitech_gateway_domain
+        else:
+            config.pop("excitech_gateway_domain", None)
+        if excitech_gateway_agent:
+            config["excitech_gateway_agent"] = excitech_gateway_agent
+        else:
+            config.pop("excitech_gateway_agent", None)
+    else:
+        config.pop("excitech_gateway_mode", None)
+        config.pop("excitech_gateway_domain", None)
+        config.pop("excitech_gateway_agent", None)
     if isinstance(reasoning_config, dict):
         config["reasoning_config"] = reasoning_config
     else:
@@ -4340,7 +4366,7 @@ def _make_agent(
             "target_model": model or None,
         })
     _pr = _load_provider_routing()
-    return AIAgent(
+    agent = AIAgent(
         model=model,
         max_iterations=_cfg_max_turns(cfg, 90),
         provider=runtime.get("provider"),
@@ -4387,6 +4413,22 @@ def _make_agent(
         fallback_model=_load_fallback_model(),
         **_agent_cbs(sid),
     )
+    if isinstance(model_override, dict):
+        if runtime.get("provider") == "excitech-gateway":
+            agent._excitech_gateway_mode = (
+                str(model_override.get("excitech_gateway_mode") or "").strip().lower() or "openai-proxy"
+            )
+            agent._excitech_gateway_domain = (
+                str(model_override.get("excitech_gateway_domain") or "").strip() or "general"
+            )
+            agent._excitech_gateway_agent = (
+                str(model_override.get("excitech_gateway_agent") or "").strip() or "assistant"
+            )
+        else:
+            agent._excitech_gateway_mode = ""
+            agent._excitech_gateway_domain = ""
+            agent._excitech_gateway_agent = ""
+    return agent
 
 
 def _init_session(
@@ -4942,8 +4984,24 @@ def _(rid, params: dict) -> dict:
     # for a new chat can't mutate the profile default. provider is optional
     # (resolved at build).
     create_model = str(params.get("model") or "").strip()
+    create_provider = str(params.get("provider") or "").strip()
+    excitech_gateway_mode = str(params.get("excitech_gateway_mode") or "").strip().lower() or "openai-proxy"
+    excitech_gateway_domain = str(params.get("excitech_gateway_domain") or "").strip() or "general"
+    excitech_gateway_agent = str(params.get("excitech_gateway_agent") or "").strip() or "assistant"
     session_model_override = (
-        {"model": create_model, "provider": str(params.get("provider") or "").strip() or None}
+        {
+            "model": create_model,
+            "provider": create_provider or None,
+            **(
+                {
+                    "excitech_gateway_mode": excitech_gateway_mode,
+                    "excitech_gateway_domain": excitech_gateway_domain,
+                    "excitech_gateway_agent": excitech_gateway_agent,
+                }
+                if create_provider == "excitech-gateway"
+                else {}
+            ),
+        }
         if create_model
         else None
     )
@@ -9858,6 +9916,46 @@ def _(rid, params: dict) -> dict:
             )
         except Exception as e:
             return _err(rid, 5001, str(e))
+
+    if key in {"excitech_gateway_mode", "excitech_gateway_domain", "excitech_gateway_agent"}:
+        if not session:
+            return _err(rid, 4002, f"{key} requires a live session")
+        if session.get("running"):
+            return _err(
+                rid,
+                4009,
+                "session busy — /interrupt the current turn before switching Excitech transport settings",
+            )
+
+        raw_value = str(value or "").strip()
+        if key == "excitech_gateway_mode":
+            normalized_value = raw_value.lower() or "openai-proxy"
+            if normalized_value not in {"openai-proxy", "ai-chat"}:
+                return _err(rid, 4002, f"unknown excitech gateway mode: {value}")
+        elif key == "excitech_gateway_domain":
+            normalized_value = raw_value or "general"
+        else:
+            normalized_value = raw_value or "assistant"
+
+        override = session.get("model_override")
+        if not isinstance(override, dict):
+            override = {}
+            session["model_override"] = override
+        override[key] = normalized_value
+
+        agent = session.get("agent")
+        if agent is not None:
+            if key == "excitech_gateway_mode":
+                agent._excitech_gateway_mode = normalized_value
+            elif key == "excitech_gateway_domain":
+                agent._excitech_gateway_domain = normalized_value
+            else:
+                agent._excitech_gateway_agent = normalized_value
+            if getattr(agent, "provider", "") == "excitech-gateway":
+                agent.client = None
+                _persist_live_session_runtime(session)
+
+        return _ok(rid, {"key": key, "value": normalized_value})
 
     if key == "fast":
         raw = str(value or "").strip().lower()

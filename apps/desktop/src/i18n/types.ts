@@ -1605,6 +1605,13 @@ export interface Translations {
     free: string
     freeTier: string
     priceTitle: string
+    excitechGatewayTitle: string
+    excitechGatewayDescription: string
+    excitechGatewayModeLabel: string
+    excitechGatewayModeOpenAIProxy: string
+    excitechGatewayModeAIChat: string
+    excitechGatewayDomainLabel: string
+    excitechGatewayAgentLabel: string
   }
 
   modelVisibility: {

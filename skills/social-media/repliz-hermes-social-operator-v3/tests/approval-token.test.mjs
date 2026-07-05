@@ -1,0 +1,2 @@
+import test from 'node:test'; import assert from 'node:assert/strict'; import {spawnSync} from 'node:child_process';
+test('issues signed approval token',()=>{const r=spawnSync('node',['scripts/approval-token.mjs','issue','--action','create_schedule','--method','POST','--path','/public/schedule','--payload','examples/instagram-album.json','--ttl-minutes','5'],{cwd:process.cwd(),env:{...process.env,REPLIZ_APPROVAL_SIGNING_KEY:'test-secret'}});assert.equal(r.status,0);assert.match(r.stdout.toString(),/^v1\./)});

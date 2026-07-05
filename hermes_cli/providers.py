@@ -211,6 +211,24 @@ HERMES_OVERLAYS: Dict[str, HermesOverlay] = {
         transport="bedrock_converse",
         auth_type="aws_sdk",
     ),
+    "excitech-gateway": HermesOverlay(
+        transport="openai_chat",
+        is_aggregator=True,
+        extra_env_vars=("EXCITECH_GATEWAY_API_KEY",),
+        # EXCITECH_GATEWAY_API_URL (set by the user) holds the gateway
+        # *root* only — plugins/web/excitech_gateway/ and
+        # plugins/model-providers/excitech-gateway/ read it directly and
+        # append their own path suffix in code. This registry's
+        # base_url_env_var consumers (auth.py, credential_pool.py, etc.)
+        # substitute the env var's raw value with no suffix logic, so we
+        # point them at EXCITECH_GATEWAY_OPENAI_BASE_URL instead — a
+        # derived var that hermes_cli/env_loader.py computes right after
+        # dotenv loads (root + "/v1/openai"). base_url_override below is
+        # only the static fallback for the rare case load_hermes_dotenv()
+        # never ran (e.g. some test setups).
+        base_url_override="https://api-ai-kita.excitech.id/v1/openai",
+        base_url_env_var="EXCITECH_GATEWAY_OPENAI_BASE_URL",
+    ),
 }
 
 
@@ -343,6 +361,12 @@ ALIASES: Dict[str, str] = {
     "gmi-cloud": "gmi",
     "gmicloud": "gmi",
 
+    # excitech-gateway
+    "excitech": "excitech-gateway",
+    "ai-kita": "excitech-gateway",
+    "ai_gateway": "excitech-gateway",
+    "excitech_gateway": "excitech-gateway",
+
     # Local server aliases → virtual "local" concept (resolved via user config)
     "lmstudio": "lmstudio",
     "lm-studio": "lmstudio",
@@ -373,6 +397,7 @@ _LABEL_OVERRIDES: Dict[str, str] = {
     "bedrock": "AWS Bedrock",
     "ollama-cloud": "Ollama Cloud",
     "xai-oauth": "xAI Grok OAuth (SuperGrok / Premium+)",
+    "excitech-gateway": "Excitech AI Gateway",
 }
 
 

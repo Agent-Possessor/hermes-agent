@@ -1,0 +1,5 @@
+name: excitech-gateway-provider
+kind: model-provider
+version: 1.0.0
+description: "Excitech AI Gateway — routes LLM calls through api-ai-kita.excitech.id (OpenCode Zen + NVIDIA NIM)"
+author: Excitech

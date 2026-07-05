@@ -2173,7 +2173,13 @@ def test_ensure_session_db_row_persists_session_model_override(monkeypatch):
     server._ensure_session_db_row(
         {
             "session_key": "k1",
-            "model_override": {"model": "openai/gpt-5.5", "provider": "openrouter"},
+            "model_override": {
+                "model": "general-main",
+                "provider": "excitech-gateway",
+                "excitech_gateway_mode": "ai-chat",
+                "excitech_gateway_domain": "general",
+                "excitech_gateway_agent": "assistant",
+            },
             "create_reasoning_override": {"effort": "high"},
             "create_service_tier_override": "priority",
         }
@@ -2181,9 +2187,12 @@ def test_ensure_session_db_row_persists_session_model_override(monkeypatch):
 
     assert len(created) == 1
     row = created[0]
-    assert row["model"] == "openai/gpt-5.5"
-    assert row["model_config"]["model"] == "openai/gpt-5.5"
-    assert row["model_config"]["provider"] == "openrouter"
+    assert row["model"] == "general-main"
+    assert row["model_config"]["model"] == "general-main"
+    assert row["model_config"]["provider"] == "excitech-gateway"
+    assert row["model_config"]["excitech_gateway_mode"] == "ai-chat"
+    assert row["model_config"]["excitech_gateway_domain"] == "general"
+    assert row["model_config"]["excitech_gateway_agent"] == "assistant"
     assert row["model_config"]["reasoning_config"] == {"effort": "high"}
     assert row["model_config"]["service_tier"] == "priority"
 
@@ -3638,6 +3647,32 @@ def test_config_set_model_records_per_session_override_not_env(monkeypatch):
         assert override["base_url"] == "https://xuanji.example/v1"
         assert override["api_key"] == "sk-xuanji"
         assert override["api_mode"] == "chat_completions"
+    finally:
+        server._sessions.clear()
+
+
+def test_config_set_excitech_gateway_mode_updates_live_session(monkeypatch):
+    agent = types.SimpleNamespace(provider="excitech-gateway", client=object())
+    session = _session(agent=agent)
+    session["model_override"] = {"model": "general-main", "provider": "excitech-gateway"}
+    server._sessions["sid"] = session
+    persisted = []
+    monkeypatch.setattr(server, "_persist_live_session_runtime", lambda current: persisted.append(current["model_override"].copy()))
+
+    try:
+        resp = server.handle_request(
+            {
+                "id": "1",
+                "method": "config.set",
+                "params": {"session_id": "sid", "key": "excitech_gateway_mode", "value": "ai-chat"},
+            }
+        )
+
+        assert resp["result"]["value"] == "ai-chat"
+        assert session["model_override"]["excitech_gateway_mode"] == "ai-chat"
+        assert agent._excitech_gateway_mode == "ai-chat"
+        assert agent.client is None
+        assert persisted[-1]["excitech_gateway_mode"] == "ai-chat"
     finally:
         server._sessions.clear()
 
@@ -8239,6 +8274,34 @@ def test_session_create_records_ui_model_as_session_override(monkeypatch):
         assert plain_sess["model_override"] is None
         assert plain_sess["create_reasoning_override"] is None
         assert plain_sess["create_service_tier_override"] is None
+    finally:
+        server._sessions.clear()
+
+
+def test_session_create_records_excitech_gateway_transport_override(monkeypatch):
+    monkeypatch.setattr(server, "_enable_gateway_prompts", lambda: None)
+    monkeypatch.setattr(server, "_start_agent_build", lambda *a, **k: None)
+    try:
+        resp = server._methods["session.create"](
+            "r1",
+            {
+                "cols": 80,
+                "model": "general-main",
+                "provider": "excitech-gateway",
+                "excitech_gateway_mode": "ai-chat",
+                "excitech_gateway_domain": "general",
+                "excitech_gateway_agent": "assistant",
+            },
+        )
+        sid = resp["result"]["session_id"]
+        sess = server._sessions[sid]
+        assert sess["model_override"] == {
+            "model": "general-main",
+            "provider": "excitech-gateway",
+            "excitech_gateway_mode": "ai-chat",
+            "excitech_gateway_domain": "general",
+            "excitech_gateway_agent": "assistant",
+        }
     finally:
         server._sessions.clear()
 

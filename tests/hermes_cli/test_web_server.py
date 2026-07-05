@@ -4283,6 +4283,26 @@ class TestModelContextLength:
         result = _normalize_config_for_web(cfg)
         assert result["model_context_length"] == 0
 
+    def test_normalize_extracts_excitech_virtual_fields(self):
+        """normalize should surface Excitech gateway transport fields."""
+        from hermes_cli.web_server import _normalize_config_for_web
+
+        cfg = {
+            "model": {
+                "default": "reasoning-main",
+                "provider": "excitech-gateway",
+                "excitech_gateway_mode": "ai-chat",
+                "excitech_gateway_domain": "general",
+                "excitech_gateway_agent": "analyst",
+                "excitech_gateway_provider_policy": {"preferred_provider": "stepfun"},
+            }
+        }
+        result = _normalize_config_for_web(cfg)
+        assert result["excitech_gateway_mode"] == "ai-chat"
+        assert result["excitech_gateway_domain"] == "general"
+        assert result["excitech_gateway_agent"] == "analyst"
+        assert '"preferred_provider": "stepfun"' in result["excitech_gateway_provider_policy"]
+
     def test_normalize_non_int_context_length_yields_zero(self):
         """normalize should coerce non-int context_length to 0."""
         from hermes_cli.web_server import _normalize_config_for_web
@@ -4373,6 +4393,51 @@ class TestModelContextLength:
         })
         assert isinstance(result["model"], dict)
         assert result["model"]["context_length"] == 32000
+
+    def test_denormalize_writes_excitech_virtual_fields_into_model_dict(self):
+        """denormalize should persist Excitech gateway transport fields into model."""
+        from hermes_cli.web_server import _denormalize_config_from_web
+        from hermes_cli.config import save_config
+
+        save_config({
+            "model": {"default": "reasoning-main", "provider": "excitech-gateway"}
+        })
+
+        result = _denormalize_config_from_web({
+            "model": "reasoning-main",
+            "model_context_length": 0,
+            "excitech_gateway_mode": "ai-chat",
+            "excitech_gateway_domain": "general",
+            "excitech_gateway_agent": "analyst",
+            "excitech_gateway_provider_policy": '{"preferred_provider":"stepfun"}',
+        })
+        assert isinstance(result["model"], dict)
+        assert result["model"]["excitech_gateway_mode"] == "ai-chat"
+        assert result["model"]["excitech_gateway_domain"] == "general"
+        assert result["model"]["excitech_gateway_agent"] == "analyst"
+        assert result["model"]["excitech_gateway_provider_policy"] == {
+            "preferred_provider": "stepfun"
+        }
+
+    def test_denormalize_upgrades_bare_string_to_dict_for_excitech_mode(self):
+        """denormalize should upgrade bare string model when ai-chat mode is set."""
+        from hermes_cli.web_server import _denormalize_config_from_web
+        from hermes_cli.config import save_config
+
+        save_config({"model": "reasoning-main"})
+
+        result = _denormalize_config_from_web({
+            "model": "reasoning-main",
+            "model_context_length": 0,
+            "excitech_gateway_mode": "ai-chat",
+            "excitech_gateway_domain": "general",
+            "excitech_gateway_agent": "analyst",
+        })
+        assert isinstance(result["model"], dict)
+        assert result["model"]["default"] == "reasoning-main"
+        assert result["model"]["excitech_gateway_mode"] == "ai-chat"
+        assert result["model"]["excitech_gateway_domain"] == "general"
+        assert result["model"]["excitech_gateway_agent"] == "analyst"
 
 
 class TestDenormalizeProviderSwitch:
@@ -4490,6 +4555,28 @@ class TestModelContextLengthSchema:
         entry = CONFIG_SCHEMA["model_context_length"]
         assert entry["type"] == "number"
         assert "category" in entry
+
+    def test_schema_has_excitech_gateway_virtual_fields(self):
+        from hermes_cli.web_server import CONFIG_SCHEMA
+
+        assert "excitech_gateway_mode" in CONFIG_SCHEMA
+        assert "excitech_gateway_domain" in CONFIG_SCHEMA
+        assert "excitech_gateway_agent" in CONFIG_SCHEMA
+        assert "excitech_gateway_provider_policy" in CONFIG_SCHEMA
+
+    def test_schema_excitech_gateway_mode_follows_model_context_length(self):
+        from hermes_cli.web_server import CONFIG_SCHEMA
+
+        keys = list(CONFIG_SCHEMA.keys())
+        model_idx = keys.index("model")
+        assert keys[model_idx + 2] == "excitech_gateway_mode"
+
+    def test_schema_excitech_gateway_mode_is_select(self):
+        from hermes_cli.web_server import CONFIG_SCHEMA
+
+        entry = CONFIG_SCHEMA["excitech_gateway_mode"]
+        assert entry["type"] == "select"
+        assert entry["options"] == ["openai-proxy", "ai-chat"]
 
 
 class TestModelInfoEndpoint:

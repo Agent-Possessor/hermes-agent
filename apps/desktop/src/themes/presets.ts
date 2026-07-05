@@ -277,13 +277,78 @@ export const slateTheme: DesktopTheme = {
   }
 }
 
+/** Nexa theme — gold accents on dark grid, dark blue on light grid. */
+export const nexaTheme: DesktopTheme = {
+  name: 'nexa',
+  label: 'Nexa',
+  description: 'Nexa styling — gold on dark canvas, dark blue on light canvas',
+  colors: {
+    background: '#f4f6fa',
+    foreground: '#001220',
+    card: '#ffffff',
+    cardForeground: '#001220',
+    muted: '#f0f4f8',
+    mutedForeground: '#5b6a77',
+    popover: '#ffffff',
+    popoverForeground: '#001220',
+    primary: '#00284b',
+    primaryForeground: '#ffffff',
+    secondary: '#e2edf8',
+    secondaryForeground: '#00284b',
+    accent: '#00c5a2',
+    accentForeground: '#ffffff',
+    border: '#00284b33',
+    input: '#00284b4d',
+    ring: '#00284b',
+    midground: '#00284b',
+    destructive: '#ef5350',
+    destructiveForeground: '#ffffff',
+    sidebarBackground: '#eaf0f6',
+    sidebarBorder: '#00284b24',
+    userBubble: '#eaf0f6',
+    userBubbleBorder: '#00284b2e'
+  },
+  darkColors: {
+    background: '#080b0e',
+    foreground: '#ffffff',
+    card: '#11161d',
+    cardForeground: '#ffffff',
+    muted: '#181e26',
+    mutedForeground: '#8d99ae',
+    popover: '#11161d',
+    popoverForeground: '#ffffff',
+    primary: '#ffd83b',
+    primaryForeground: '#080b0e',
+    secondary: '#1d242f',
+    secondaryForeground: '#ffd83b',
+    accent: '#00c5a2',
+    accentForeground: '#080b0e',
+    border: '#ffd83b3d',
+    input: '#ffd83b5c',
+    ring: '#ffd83b',
+    midground: '#ffd83b',
+    destructive: '#ef5350',
+    destructiveForeground: '#ffffff',
+    sidebarBackground: '#0d1117',
+    sidebarBorder: '#ffd83b2e',
+    userBubble: '#181e26',
+    userBubbleBorder: '#ffd83b3d'
+  },
+  typography: {
+    fontSans: `"Inter", ${SYSTEM_SANS}`,
+    fontMono: `"JetBrains Mono", ${SYSTEM_MONO}`,
+    fontUrl: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap'
+  }
+}
+
 export const BUILTIN_THEMES: Record<string, DesktopTheme> = {
   nous: nousTheme,
   midnight: midnightTheme,
   ember: emberTheme,
   mono: monoTheme,
   cyberpunk: cyberpunkTheme,
-  slate: slateTheme
+  slate: slateTheme,
+  nexa: nexaTheme
 }
 
 export const BUILTIN_THEME_LIST = Object.values(BUILTIN_THEMES)

@@ -228,6 +228,75 @@ export const defaultLargeTheme: DashboardTheme = {
   },
 };
 
+export const nexaTheme: DashboardTheme = {
+  name: "nexa",
+  label: "Nexa",
+  description: "Gold accents on a deep dark grid canvas",
+  palette: {
+    background: { hex: "#080b0e", alpha: 1 },
+    midground: { hex: "#ffd83b", alpha: 1 },
+    foreground: { hex: "#ffffff", alpha: 0 },
+    warmGlow: "rgba(255, 216, 59, 0.22)",
+    noiseOpacity: 0.8,
+  },
+  typography: {
+    ...DEFAULT_TYPOGRAPHY,
+    fontSans: `"Inter", ${SYSTEM_SANS}`,
+    fontMono: `"JetBrains Mono", ${SYSTEM_MONO}`,
+    fontUrl:
+      "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap",
+    letterSpacing: "-0.005em",
+  },
+  layout: {
+    ...DEFAULT_LAYOUT,
+    radius: "0.75rem",
+  },
+  terminalBackground: "#000000",
+  colorOverrides: {
+    success: "#00c5a2",
+    warning: "#ffd83b",
+  },
+  swatchColors: ["#080b0e", "#ffd83b", "#ffffff"],
+};
+
+export const nexaLightTheme: DashboardTheme = {
+  name: "nexa-light",
+  label: "Nexa Light",
+  description: "Light mode — dark blue accents on a bright canvas",
+  palette: {
+    background: { hex: "#0b0905", alpha: 1 },
+    midground: { hex: "#ffd7b4", alpha: 1 },
+    foreground: { hex: "#ffffff", alpha: 1 },
+    warmGlow: "rgba(255, 216, 59, 0.18)",
+    noiseOpacity: 0.4,
+  },
+  typography: {
+    ...DEFAULT_TYPOGRAPHY,
+    fontSans: `"Inter", ${SYSTEM_SANS}`,
+    fontMono: `"JetBrains Mono", ${SYSTEM_MONO}`,
+    fontUrl:
+      "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap",
+    letterSpacing: "-0.005em",
+  },
+  layout: {
+    ...DEFAULT_LAYOUT,
+    radius: "0.75rem",
+  },
+  terminalBackground: "#000000",
+  componentStyles: {
+    backdrop: {
+      fillerOpacity: "0.02",
+    },
+  },
+  colorOverrides: {
+    destructive: "#10acaf",
+    destructiveForeground: "#000000",
+    success: "#ff3a5d",
+    warning: "#ffd7b4",
+  },
+  swatchColors: ["#FFFFFF", "#00284b", "#f4f6fa"],
+};
+
 export const BUILTIN_THEMES: Record<string, DashboardTheme> = {
   default: defaultTheme,
   "default-large": defaultLargeTheme,
@@ -237,4 +306,6 @@ export const BUILTIN_THEMES: Record<string, DashboardTheme> = {
   mono: monoTheme,
   cyberpunk: cyberpunkTheme,
   rose: roseTheme,
+  nexa: nexaTheme,
+  "nexa-light": nexaLightTheme,
 };

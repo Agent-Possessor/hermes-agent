@@ -244,8 +244,29 @@ def load_hermes_dotenv(
 
     _apply_external_secret_sources(home_path)
     _apply_managed_env()
+    _apply_excitech_gateway_derived_url()
 
     return loaded
+
+
+def _apply_excitech_gateway_derived_url() -> None:
+    """Derive the excitech-gateway OpenAI-proxy URL from its root env var.
+
+    ``EXCITECH_GATEWAY_API_URL`` holds the gateway *root* (no path) — the
+    plugins under ``plugins/web/excitech_gateway/`` and
+    ``plugins/model-providers/excitech-gateway/`` read it directly and
+    append their own path suffix in code. But ``hermes_cli/providers.py``'s
+    ``PROVIDER_REGISTRY`` (consumed by ``auth.py``, ``credential_pool.py``,
+    etc.) substitutes its ``base_url_env_var`` value raw, with no suffix
+    logic — pointing it straight at the root var would produce a path-less
+    base_url there. So we compute the full ``.../v1/openai`` URL once here,
+    right after dotenv loads, and store it under a separate derived env var
+    that the registry's ``base_url_env_var`` points to instead.
+    """
+    root = os.getenv("EXCITECH_GATEWAY_API_URL", "").strip().rstrip("/")
+    if not root:
+        root = "https://api-ai-kita.excitech.id"
+    os.environ["EXCITECH_GATEWAY_OPENAI_BASE_URL"] = f"{root}/v1/openai"
 
 
 def _apply_managed_env() -> None:

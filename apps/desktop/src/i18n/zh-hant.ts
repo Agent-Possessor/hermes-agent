@@ -1879,7 +1879,14 @@ export const zhHant = defineLocale({
     proNeedsSubscription: 'Pro 模型需要付費 Nous 訂閱。',
     free: '免費',
     freeTier: '免費層',
-    priceTitle: '每百萬 Token 的輸入/輸出價格'
+    priceTitle: '每百萬 Token 的輸入/輸出價格',
+    excitechGatewayTitle: 'Excitech Gateway mode',
+    excitechGatewayDescription: '在選擇 Excitech 模型時套用。`/v1/ai/chat` 是傳輸模式，不是獨立模型。',
+    excitechGatewayModeLabel: 'Mode',
+    excitechGatewayModeOpenAIProxy: 'OpenAI proxy',
+    excitechGatewayModeAIChat: 'AI chat orchestration',
+    excitechGatewayDomainLabel: 'Domain',
+    excitechGatewayAgentLabel: 'Agent'
   },
 
   modelVisibility: {
