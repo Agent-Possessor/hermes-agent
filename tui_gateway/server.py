@@ -12423,6 +12423,7 @@ def _(rid, params: dict) -> dict:
             pricing=True,
             capabilities=True,
             refresh=bool(params.get("refresh")),
+            probe_custom_providers=bool(params.get("refresh")),
         )
         return _ok(rid, payload)
     except Exception as e:
