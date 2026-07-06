@@ -28,7 +28,7 @@ hermes [global-options] <command> [subcommand/options]
 | `--yolo` | Bypass dangerous-command approval prompts. |
 | `--pass-session-id` | Include the session ID in the agent's system prompt. |
 | `--ignore-user-config` | Ignore `~/.hermes/config.yaml` and fall back to built-in defaults. Credentials in `.env` are still loaded. |
-| `--ignore-rules` | Skip auto-injection of `AGENTS.md`, `SOUL.md`, `.cursorrules`, memory, and preloaded skills. |
+| `--ignore-rules` | Skip auto-injection of `AGENTS.md`, `SOUL.md`, `.cursorrules`, and memory entries. Chat still preloads mandatory product-knowledge skills. |
 | `--tui` | Launch the [TUI](../user-guide/tui.md) instead of the classic CLI. Equivalent to `HERMES_TUI=1`. Always wins over `display.interface`. |
 | `--cli` | Force the classic prompt_toolkit REPL. Use this to override `display.interface: tui` for a single invocation. |
 | `--dev` | With `--tui`: run the TypeScript sources directly via `tsx` instead of the prebuilt bundle (for TUI contributors). |
@@ -37,7 +37,7 @@ hermes [global-options] <command> [subcommand/options]
 
 | Command | Purpose |
 |---------|---------|
-| `hermes chat` | Interactive or one-shot chat with the agent. |
+| `hermes chat` | Interactive or one-shot chat with the agent. Product-knowledge skills are auto-preloaded from the active profile. |
 | `hermes model` | Interactively choose the default provider and model. |
 | `hermes moa` | Configure named Mixture of Agents presets selectable from the model picker. |
 | `hermes fallback` | Manage fallback providers tried when the primary model errors. |
@@ -94,6 +94,8 @@ hermes [global-options] <command> [subcommand/options]
 
 ## `hermes chat`
 
+`hermes chat` selalu memuat skill `product-knowledge` yang terpasang di profile aktif, lalu menggabungkannya dengan skill tambahan yang kamu kirim via `-s` / `--skills`.
+
 ```bash
 hermes chat [options]
 ```
@@ -106,7 +108,7 @@ Common options:
 | `-m`, `--model <model>` | Override the model for this run. |
 | `-t`, `--toolsets <csv>` | Enable a comma-separated set of toolsets. |
 | `--provider <provider>` | Force a provider: `auto`, `openrouter`, `nous`, `openai-codex`, `copilot-acp`, `copilot`, `anthropic`, `gemini`, `huggingface`, `novita` (aliases `novita-ai`, `novitaai`), `openai-api`, `zai`, `kimi-coding`, `kimi-coding-cn`, `minimax`, `minimax-cn`, `minimax-oauth`, `kilocode`, `xiaomi`, `arcee`, `gmi`, `alibaba`, `alibaba-coding-plan` (alias `alibaba_coding`), `deepseek`, `nvidia`, `ollama-cloud`, `xai` (alias `grok`), `xai-oauth` (alias `grok-oauth`), `qwen-oauth`, `bedrock`, `opencode-zen`, `opencode-go`, `azure-foundry`, `lmstudio`, `stepfun`, `tencent-tokenhub` (alias `tencent`, `tokenhub`). |
-| `-s`, `--skills <name>` | Preload one or more skills for the session (can be repeated or comma-separated). |
+| `-s`, `--skills <name>` | Preload one or more additional skills for the session (can be repeated or comma-separated). Product-knowledge tetap dimuat otomatis. |
 | `-v`, `--verbose` | Verbose output. |
 | `-Q`, `--quiet` | Programmatic mode: suppress banner/spinner/tool previews. |
 | `--image <path>` | Attach a local image to a single query. |
@@ -116,8 +118,8 @@ Common options:
 | `--yolo` | Skip approval prompts. |
 | `--pass-session-id` | Pass the session ID into the system prompt. |
 | `--ignore-user-config` | Ignore `~/.hermes/config.yaml` and use built-in defaults. Credentials in `.env` are still loaded. Useful for isolated CI runs, reproducible bug reports, and third-party integrations. |
-| `--ignore-rules` | Skip auto-injection of `AGENTS.md`, `SOUL.md`, `.cursorrules`, persistent memory, and preloaded skills. Combine with `--ignore-user-config` for a fully isolated run. |
-| `--safe-mode` | Troubleshooting mode: disable ALL customizations — user config, rules/memory injection, plugins, and MCP servers (implies `--ignore-user-config` and `--ignore-rules`). Use to isolate whether a problem comes from your setup or from Hermes itself. |
+| `--ignore-rules` | Skip auto-injection of `AGENTS.md`, `SOUL.md`, `.cursorrules`, and persistent memory. Chat still preloads mandatory product-knowledge skills. Combine with `--ignore-user-config` for a more isolated run. |
+| `--safe-mode` | Troubleshooting mode: disable most customizations — user config, rules/memory injection, plugins, and MCP servers (implies `--ignore-user-config` and `--ignore-rules`). Use to isolate whether a problem comes from your setup or from Hermes itself. |
 | `--source <tag>` | Session source tag for filtering (default: `cli`). Use `tool` for third-party integrations that should not appear in user session lists. |
 | `--max-turns <N>` | Maximum tool-calling iterations per conversation turn (default: 90, or `agent.max_turns` in config). |
 
