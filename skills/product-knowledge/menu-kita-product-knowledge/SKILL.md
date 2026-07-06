@@ -19,6 +19,7 @@ Gunakan knowledge base ini saat pengguna bertanya tentang Menu Kita, manfaatnya,
 6. Gunakan Bahasa Indonesia yang jelas, praktis, dan owner-friendly.
 
 ## Jalur Baca
+- `references/knowledge-map.md` — entry point ringkas untuk konteks produk yang paling cepat dipakai.
 - Ringkasan dan positioning: `product-overview.md`
 - Fitur dan nilai bisnis: `features/feature-catalog.md`
 - Persona: `audiences/personas.md`

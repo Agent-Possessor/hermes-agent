@@ -22,6 +22,7 @@ Dompet-Ku is a self-custody, multi-chain digital asset wallet designed to help p
 6. Do not ask for seed phrases, private keys, passwords, recovery codes, or authentication codes.
 
 ## Knowledge map
+- `references/knowledge-map.md` — compact entry point with the fastest path to the right product context.
 - `product-overview.md` — identity, problem, positioning, audiences.
 - `features/feature-catalog.md` — business-level feature explanations and status language.
 - `features/use-cases.md` — user journeys and practical scenarios.
