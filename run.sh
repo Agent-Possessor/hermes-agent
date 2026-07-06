@@ -10,6 +10,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VENV="$ROOT/.venv"
 PYTHON="$VENV/bin/python"
 HERMES="$VENV/bin/hermes"
+HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
 
 # ── Warna ─────────────────────────────────────────────────────────────────────
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
@@ -56,6 +57,27 @@ ensure_python_env() {
     else
         ok "hermes-agent sudah terinstall"
     fi
+}
+
+seed_home_env_from_repo() {
+    local source_env="$ROOT/.env"
+    local target_env="$HERMES_HOME/.env"
+
+    if [ -f "$target_env" ]; then
+        ok "~/.hermes/.env already exists, keeping it"
+        return 0
+    fi
+
+    if [ ! -f "$source_env" ]; then
+        warn "Repo .env tidak ditemukan, setup tetap jalan dari awal"
+        return 0
+    fi
+
+    info "Menyalin $ROOT/.env ke $target_env ..."
+    mkdir -p "$HERMES_HOME"
+    cp "$source_env" "$target_env"
+    chmod 600 "$target_env" 2>/dev/null || true
+    ok ".env berhasil dibawa ke ~/.hermes"
 }
 
 # ── Cek Node / npm ────────────────────────────────────────────────────────────
@@ -112,6 +134,7 @@ ensure_npm_workspace_desktop() {
 run_onboarding() {
     section "[ Onboarding / Setup Wizard ]"
     ensure_python_env
+    seed_home_env_from_repo
     info "Menjalankan hermes setup..."
     echo ""
     exec "$HERMES" setup

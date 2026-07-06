@@ -1766,7 +1766,10 @@ copy_config_templates() {
 
     # Create .env at ~/.hermes/.env (top level, easy to find)
     if [ ! -f "$HERMES_HOME/.env" ]; then
-        if [ -f "$INSTALL_DIR/.env.example" ]; then
+        if [ -f "$INSTALL_DIR/.env" ]; then
+            cp "$INSTALL_DIR/.env" "$HERMES_HOME/.env"
+            log_success "Created ~/.hermes/.env from repo .env"
+        elif [ -f "$INSTALL_DIR/.env.example" ]; then
             cp "$INSTALL_DIR/.env.example" "$HERMES_HOME/.env"
             log_success "Created ~/.hermes/.env from template"
         else
