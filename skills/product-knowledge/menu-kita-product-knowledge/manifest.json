@@ -1,0 +1,22 @@
+{
+  "name": "Menu Kita Product Knowledge Base",
+  "version": "1.0.0",
+  "language": "id-ID",
+  "scope": "Non-technical product, business, operational, sales, and agent communication knowledge",
+  "files": [
+    "SKILL.md",
+    "agent-guidelines/communication-rules.md",
+    "agent-guidelines/faq-by-role.md",
+    "agent-guidelines/sales-faq-objections.md",
+    "audiences/personas.md",
+    "business/business-model.md",
+    "business/finance-and-decision-support.md",
+    "business/growth-and-retention.md",
+    "features/feature-catalog.md",
+    "journeys/customer-and-merchant-journeys.md",
+    "operations/feature-status-and-claim-boundaries.md",
+    "product-overview.md",
+    "references/repository-capability-map.md",
+    "references/source-map.md"
+  ]
+}
