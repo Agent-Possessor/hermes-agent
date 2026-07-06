@@ -2215,6 +2215,8 @@ def _resolve_use_tui(args) -> bool:
 def cmd_chat(args):
     """Run interactive chat CLI."""
     use_tui = _resolve_use_tui(args)
+    chat_skills = getattr(args, "skills", None)
+    chat_skills = _merge_chat_skills(chat_skills)
 
     # Resolve --continue into --resume with the latest session or by name
     continue_val = getattr(args, "continue_last", None)
@@ -2326,7 +2328,7 @@ def cmd_chat(args):
     if getattr(args, "yolo", False):
         os.environ["HERMES_YOLO_MODE"] = "1"
 
-    # --safe-mode: troubleshooting mode that disables ALL customizations.
+    # --safe-mode: troubleshooting mode that disables most customizations.
     # Inspired by Claude Code v2.1.169's --safe-mode (June 2026): run with a
     # pristine environment to isolate whether a problem comes from the user's
     # setup (config, rules files, plugins, MCP servers) or from Hermes itself.
@@ -2347,7 +2349,7 @@ def cmd_chat(args):
         os.environ["HERMES_IGNORE_USER_CONFIG"] = "1"
 
     # --ignore-rules: skip auto-injection of AGENTS.md/SOUL.md/.cursorrules
-    # (rules), memory entries, and any preloaded skills coming from user config.
+    # (rules) and memory entries.
     # Maps to AIAgent(skip_context_files=True, skip_memory=True).
     if getattr(args, "ignore_rules", False):
         os.environ["HERMES_IGNORE_RULES"] = "1"
@@ -2365,7 +2367,7 @@ def cmd_chat(args):
             model=getattr(args, "model", None),
             provider=getattr(args, "provider", None),
             toolsets=getattr(args, "toolsets", None),
-            skills=getattr(args, "skills", None),
+            skills=chat_skills,
             verbose=getattr(args, "verbose", None),
             quiet=getattr(args, "quiet", False),
             query=getattr(args, "query", None),
@@ -2385,7 +2387,7 @@ def cmd_chat(args):
         "model": args.model,
         "provider": getattr(args, "provider", None),
         "toolsets": args.toolsets,
-        "skills": getattr(args, "skills", None),
+        "skills": chat_skills,
         "verbose": getattr(args, "verbose", None),
         "quiet": getattr(args, "quiet", False),
         "query": args.query,
@@ -12410,6 +12412,58 @@ def _set_chat_arg_defaults(args) -> None:
     ]:
         if not hasattr(args, attr):
             setattr(args, attr, default)
+
+
+def _default_product_knowledge_skills() -> list[str]:
+    """Return installed product-knowledge skills that should preload on chat."""
+    try:
+        from tools.skills_tool import SKILLS_DIR
+    except Exception:
+        return []
+
+    root = Path(SKILLS_DIR) / "product-knowledge"
+    if not root.exists():
+        return []
+
+    skills: list[str] = []
+    seen: set[str] = set()
+    for skill_md in sorted(root.glob("*/SKILL.md")):
+        skill_name = skill_md.parent.name.strip()
+        if not skill_name or skill_name in seen:
+            continue
+        seen.add(skill_name)
+        skills.append(skill_name)
+    return skills
+
+
+def _merge_chat_skills(skills: object, *, include_defaults: bool = True) -> object:
+    """Merge explicit chat skills with mandatory product-knowledge defaults."""
+    merged: list[str] = []
+    seen: set[str] = set()
+
+    def _append_many(items: object) -> None:
+        if not items:
+            return
+        if isinstance(items, str):
+            values = [items]
+        elif isinstance(items, (list, tuple, set)):
+            values = list(items)
+        else:
+            values = [str(items)]
+        for value in values:
+            for part in str(value).split(","):
+                skill = part.strip()
+                if skill and skill not in seen:
+                    seen.add(skill)
+                    merged.append(skill)
+
+    if include_defaults:
+        _append_many(_default_product_knowledge_skills())
+    _append_many(skills)
+
+    if not merged:
+        return skills
+    return merged
 
 
 def _try_termux_fast_cli_launch() -> bool:

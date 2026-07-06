@@ -3906,6 +3906,43 @@ def _parse_tui_skills_env() -> list[str]:
     return skills
 
 
+def _default_product_knowledge_skills() -> list[str]:
+    """Return installed product-knowledge skills that should preload in chat."""
+    try:
+        from tools.skills_tool import SKILLS_DIR
+    except Exception:
+        return []
+
+    root = Path(SKILLS_DIR) / "product-knowledge"
+    if not root.exists():
+        return []
+
+    skills: list[str] = []
+    seen: set[str] = set()
+    for skill_md in sorted(root.glob("*/SKILL.md")):
+        skill_name = skill_md.parent.name.strip()
+        if not skill_name or skill_name in seen:
+            continue
+        seen.add(skill_name)
+        skills.append(skill_name)
+    return skills
+
+
+def _merge_chat_skills(skills: list[str]) -> list[str]:
+    merged: list[str] = []
+    seen: set[str] = set()
+
+    for skill in _default_product_knowledge_skills():
+        if skill not in seen:
+            seen.add(skill)
+            merged.append(skill)
+    for skill in skills:
+        if skill not in seen:
+            seen.add(skill)
+            merged.append(skill)
+    return merged
+
+
 def _load_fallback_model():
     """Return the configured fallback chain for TUI-created agents.
 
@@ -4285,7 +4322,7 @@ def _make_agent(
     cfg = _load_cfg()
     agent_cfg = cfg.get("agent") or {}
     system_prompt = _prompt_text(agent_cfg.get("system_prompt", ""))
-    startup_skills = _parse_tui_skills_env()
+    startup_skills = _merge_chat_skills(_parse_tui_skills_env())
     if startup_skills:
         from agent.skill_commands import build_preloaded_skills_prompt
 
