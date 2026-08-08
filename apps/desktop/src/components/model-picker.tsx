@@ -1,8 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
-import { useEffect, useMemo, useState } from 'react'
+import { useState } from 'react'
 
 import { useI18n } from '@/i18n'
-import { requestModelOptions } from '@/lib/model-options'
+import { modelOptionsQueryKey, requestModelOptions } from '@/lib/model-options'
+import { modelSearchText } from '@/lib/model-search-text'
 import { currentPickerSelection } from '@/lib/model-status-label'
 import { normalize } from '@/lib/text'
 import type { ModelOptionProvider, ModelPricing } from '@/types/hermes'
@@ -15,7 +16,7 @@ import { InlineNotice } from './notifications'
 import { Button } from './ui/button'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from './ui/command'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog'
-import { Input } from './ui/input'
+import { HighlightMatches } from './ui/highlight-matches'
 import { Skeleton } from './ui/skeleton'
 
 interface ModelPickerDialogProps {
@@ -25,21 +26,13 @@ interface ModelPickerDialogProps {
   sessionId?: string | null
   currentModel: string
   currentProvider: string
-  currentExcitechGatewayAgent?: string
-  currentExcitechGatewayDomain?: string
-  currentExcitechGatewayMode?: string
-  onSelect: (selection: {
-    excitechGatewayAgent?: string
-    excitechGatewayDomain?: string
-    excitechGatewayMode?: string
-    provider: string
-    model: string
-  }) => void
+  onSelect: (selection: { provider: string; model: string }) => void
+  profile?: string
   /**
-   * Optional class to apply to DialogContent. Use to override z-index when
-   * stacking the picker on top of another fixed overlay (e.g. the desktop
-   * onboarding overlay, which sits at z-1300; the default Dialog z-130 ends
-   * up rendering underneath and blocks pointer events).
+   * Optional class for DialogContent. Use it to lift the picker onto a higher
+   * rung of the overlay ladder when it opens over another fixed overlay (the
+   * desktop onboarding overlay, say) — on the default modal rung it renders
+   * underneath and blocks pointer events.
    */
   contentClassName?: string
 }
@@ -51,10 +44,8 @@ export function ModelPickerDialog({
   sessionId,
   currentModel,
   currentProvider,
-  currentExcitechGatewayAgent = 'assistant',
-  currentExcitechGatewayDomain = 'general',
-  currentExcitechGatewayMode = 'openai-proxy',
   onSelect,
+  profile = 'default',
   contentClassName
 }: ModelPickerDialogProps) {
   const { t } = useI18n()
@@ -65,24 +56,16 @@ export function ModelPickerDialog({
   // it and do a plain substring filter that preserves array order — matching
   // the `hermes model` CLI picker, which shows the curated list verbatim.
   const [search, setSearch] = useState('')
-  const [excitechGatewayMode, setExcitechGatewayMode] = useState(currentExcitechGatewayMode)
-  const [excitechGatewayDomain, setExcitechGatewayDomain] = useState(currentExcitechGatewayDomain)
-  const [excitechGatewayAgent, setExcitechGatewayAgent] = useState(currentExcitechGatewayAgent)
 
   const modelOptions = useQuery({
-    queryKey: ['model-options', sessionId || 'global'],
+    queryKey: modelOptionsQueryKey(profile, sessionId),
     queryFn: () => requestModelOptions({ gateway: gw, sessionId }),
     enabled: open
   })
 
   const providers = modelOptions.data?.providers ?? []
-  const hasExcitechGatewayProvider = useMemo(
-    () => providers.some(provider => provider.slug === 'excitech-gateway'),
-    [providers]
-  )
 
   const { model: optionsModel, provider: optionsProvider } = currentPickerSelection(
-    !!sessionId,
     { model: currentModel, provider: currentProvider },
     modelOptions.data
   )
@@ -95,48 +78,15 @@ export function ModelPickerDialog({
       : String(modelOptions.error)
     : null
 
-  useEffect(() => {
-    setExcitechGatewayMode(currentExcitechGatewayMode)
-  }, [currentExcitechGatewayMode])
-
-  useEffect(() => {
-    setExcitechGatewayDomain(currentExcitechGatewayDomain)
-  }, [currentExcitechGatewayDomain])
-
-  useEffect(() => {
-    setExcitechGatewayAgent(currentExcitechGatewayAgent)
-  }, [currentExcitechGatewayAgent])
-
   const selectModel = (provider: ModelOptionProvider, model: string) => {
-    const lowered = model.toLowerCase()
-    const nextAgent =
-      provider.slug === 'excitech-gateway'
-        ? (excitechGatewayAgent.trim() ||
-            (lowered.includes('reasoning')
-              ? 'analyst'
-              : lowered.includes('coder') || lowered.includes('code')
-                ? 'developer'
-                : 'assistant'))
-        : undefined
-
-    onSelect({
-      provider: provider.slug,
-      model,
-      ...(provider.slug === 'excitech-gateway'
-        ? {
-            excitechGatewayMode: excitechGatewayMode.trim() || 'openai-proxy',
-            excitechGatewayDomain: excitechGatewayDomain.trim() || 'general',
-            excitechGatewayAgent: nextAgent
-          }
-        : {})
-    })
+    onSelect({ provider: provider.slug, model })
     onOpenChange(false)
   }
 
   // Open the full onboarding provider selector to add/switch a provider.
   // Reuses the entire onboarding flow (OAuth rows, API-key form, device-code,
   // model-confirm) instead of duplicating provider UI here. Closes the picker
-  // so the onboarding overlay (z-1300) isn't rendered underneath it.
+  // so the onboarding overlay isn't rendered underneath it.
   const addProvider = () => {
     startManualOnboarding()
     onOpenChange(false)
@@ -144,7 +94,10 @@ export function ModelPickerDialog({
 
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
-      <DialogContent className={cn('max-h-[85vh] max-w-2xl gap-0 overflow-hidden p-0', contentClassName)}>
+      <DialogContent
+        bodyClassName="gap-0 overflow-hidden p-0"
+        className={cn('max-h-[85vh] max-w-2xl', contentClassName)}
+      >
         <DialogHeader className="border-b border-border px-4 py-3">
           <DialogTitle>{copy.title}</DialogTitle>
           <DialogDescription className="font-mono text-xs leading-relaxed">
@@ -168,47 +121,6 @@ export function ModelPickerDialog({
             />
           </CommandList>
         </Command>
-
-        {hasExcitechGatewayProvider && (
-          <section className="border-t border-border bg-card px-4 py-3">
-            <div className="mb-3">
-              <h3 className="text-sm font-medium">{copy.excitechGatewayTitle}</h3>
-              <p className="mt-1 text-xs text-muted-foreground">{copy.excitechGatewayDescription}</p>
-            </div>
-
-            <div className="grid gap-3 md:grid-cols-3">
-              <label className="space-y-1.5 text-sm">
-                <span className="text-xs text-muted-foreground">{copy.excitechGatewayModeLabel}</span>
-                <select
-                  className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-                  onChange={event => setExcitechGatewayMode(event.target.value)}
-                  value={excitechGatewayMode}
-                >
-                  <option value="openai-proxy">{copy.excitechGatewayModeOpenAIProxy}</option>
-                  <option value="ai-chat">{copy.excitechGatewayModeAIChat}</option>
-                </select>
-              </label>
-
-              <label className="space-y-1.5 text-sm">
-                <span className="text-xs text-muted-foreground">{copy.excitechGatewayDomainLabel}</span>
-                <Input
-                  onChange={event => setExcitechGatewayDomain(event.target.value)}
-                  placeholder="general"
-                  value={excitechGatewayDomain}
-                />
-              </label>
-
-              <label className="space-y-1.5 text-sm">
-                <span className="text-xs text-muted-foreground">{copy.excitechGatewayAgentLabel}</span>
-                <Input
-                  onChange={event => setExcitechGatewayAgent(event.target.value)}
-                  placeholder="assistant"
-                  value={excitechGatewayAgent}
-                />
-              </label>
-            </div>
-          </section>
-        )}
 
         <DialogFooter className="flex-row items-center justify-end gap-2 bg-card p-3">
           <Button onClick={addProvider} variant="ghost">
@@ -265,7 +177,7 @@ function ModelResults({
 
   const matches = (provider: ModelOptionProvider, model: string) =>
     !q ||
-    model.toLowerCase().includes(q) ||
+    modelSearchText(model).toLowerCase().includes(q) ||
     provider.name.toLowerCase().includes(q) ||
     provider.slug.toLowerCase().includes(q)
 
@@ -317,7 +229,9 @@ function ModelResults({
                   }}
                   value={`${provider.slug}:${model}`}
                 >
-                  <span className="min-w-0 flex-1 truncate">{model}</span>
+                  <span className="min-w-0 flex-1 truncate">
+                    <HighlightMatches query={search} text={model} />
+                  </span>
                   {locked && (
                     <span className="shrink-0 text-[0.62rem] uppercase tracking-wide opacity-80">{copy.pro}</span>
                   )}
@@ -360,15 +274,39 @@ function ModelPrice({ price, isCurrent }: { price?: ModelPricing; isCurrent: boo
     )
   }
 
+  const onSale = typeof price.discount_percent === 'number' && Boolean(price.was_input || price.was_output)
+
   return (
     <span
       className={cn(
-        'shrink-0 text-[0.66rem] tabular-nums',
+        'shrink-0 inline-flex items-center gap-1.5 text-[0.66rem] tabular-nums',
         isCurrent ? 'text-primary-foreground/80' : 'text-muted-foreground'
       )}
       title={copy.priceTitle}
     >
-      {price.input || '?'} / {price.output || '?'}
+      {onSale ? (
+        <span
+          className={cn(
+            'rounded-sm px-1 py-0.5 text-[0.62rem] font-semibold',
+            isCurrent ? 'bg-primary-foreground/20' : 'bg-amber-500/15 text-amber-700 dark:text-amber-400'
+          )}
+        >
+          -{price.discount_percent}%
+        </span>
+      ) : null}
+      <span>
+        {price.input || '?'} / {price.output || '?'}
+      </span>
+      {onSale ? (
+        <span
+          className={cn(
+            'line-through decoration-from-font opacity-70',
+            isCurrent ? 'text-primary-foreground/60' : 'text-muted-foreground/80'
+          )}
+        >
+          {copy.wasPrice} {price.was_input || '?'} / {price.was_output || '?'}
+        </span>
+      ) : null}
     </span>
   )
 }
