@@ -100,7 +100,8 @@ def test_ai_chat_adapter_maps_payload_and_response_metadata():
     assert request["json"]["options"]["stream"] is False
     assert request["json"]["options"]["max_tokens"] == 512
     input_text = request["json"]["input"]["content"]
-    assert input_text.startswith("Hermes instructions and current turn:")
+    assert input_text.startswith("cek harga BTC hari ini")
+    assert "Hermes instructions and current turn:" in input_text
     assert "[SYSTEM]\nAnda adalah Hermes." in input_text
     assert "[USER]\ncek harga BTC hari ini" in input_text
     assert "Available Hermes tools:" in request["json"]["input"]["content"]

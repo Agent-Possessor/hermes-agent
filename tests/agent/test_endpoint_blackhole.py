@@ -224,6 +224,22 @@ class TestQueryOllamaApiShowBlackhole:
 
         assert _endpoint_blackholed(self.URL) is False
 
+    @pytest.mark.parametrize(
+        "base_url",
+        [
+            "https://api-ai-kita.excitech.id/v1/openai",
+            "https://api-ai-kita.excitech.id/v1/ai/chat",
+            "http://127.0.0.1:8080/v1/ai/chat",
+        ],
+    )
+    def test_excitech_gateway_skips_ollama_api_show_probe(self, base_url):
+        from agent.model_metadata import _query_ollama_api_show_uncached
+
+        with patch("httpx.Client") as client_cls:
+            assert _query_ollama_api_show_uncached("general-main", base_url) is None
+
+        client_cls.assert_not_called()
+
 
 class TestQueryLocalContextLengthBlackhole:
     URL = "http://10.0.0.9:30080/v1"
