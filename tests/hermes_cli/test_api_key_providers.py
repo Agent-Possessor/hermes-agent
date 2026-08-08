@@ -1214,3 +1214,23 @@ class TestDeepInfraProviderProfile:
         # of truth. Pin the shape only, not contents.
         assert isinstance(profile.fallback_models, tuple)
 
+
+class TestExcitechGatewayProviderProfile:
+    """Excitech provider plugin must be routable by /model switching."""
+
+    def test_profile_registered_and_resolvable_for_model_switch(self):
+        from providers import get_provider_profile
+        from hermes_cli.auth import PROVIDER_REGISTRY
+        from hermes_cli.providers import resolve_provider_full
+
+        profile = get_provider_profile("excitech-gateway")
+        assert profile is not None
+        assert profile.name == "excitech-gateway"
+        assert "excitech-gateway" in PROVIDER_REGISTRY
+
+        resolved = resolve_provider_full("excitech-gateway")
+        assert resolved is not None
+        assert resolved.id == "excitech-gateway"
+        assert resolved.transport == "openai_chat"
+        assert resolved.base_url.endswith("/v1/ai/chat")
+        assert "EXCITECH_GATEWAY_API_KEY" in resolved.api_key_env_vars
