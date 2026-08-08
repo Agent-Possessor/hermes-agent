@@ -652,6 +652,14 @@ def _is_openrouter_base_url(base_url: str) -> bool:
     return base_url_host_matches(base_url, "openrouter.ai")
 
 
+def _is_excitech_gateway_base_url(base_url: str) -> bool:
+    normalized = _normalize_base_url(base_url).rstrip("/").lower()
+    return bool(normalized) and (
+        normalized.endswith("/v1/ai/chat")
+        or base_url_host_matches(normalized, "api-ai-kita.excitech.id")
+    )
+
+
 def _is_custom_endpoint(base_url: str) -> bool:
     normalized = _normalize_base_url(base_url)
     return bool(normalized) and not _is_openrouter_base_url(normalized)
@@ -695,6 +703,7 @@ _URL_TO_PROVIDER: Dict[str, str] = {
     "integrate.api.nvidia.com": "nvidia",
     "api.xiaomimimo.com": "xiaomi",
     "xiaomimimo.com": "xiaomi",
+    "api-ai-kita.excitech.id": "excitech-gateway",
     "api.gmi-serving.com": "gmi",
     "api.novita.ai": "novita",
     "tokenhub.tencentmaas.com": "tencent-tokenhub",
@@ -1920,6 +1929,9 @@ def _query_ollama_api_show(model: str, base_url: str, api_key: str = "") -> Opti
     """
     import time as _time
 
+    if _is_excitech_gateway_base_url(base_url):
+        return None
+
     # Namespaced cache key: shares the TTL store with
     # _query_local_context_length but never collides with its (model, url)
     # keys — the two probes can return different values for the same pair.
@@ -1938,6 +1950,9 @@ def _query_ollama_api_show(model: str, base_url: str, api_key: str = "") -> Opti
 def _query_ollama_api_show_uncached(model: str, base_url: str, api_key: str = "") -> Optional[int]:
     """Uncached body of ``_query_ollama_api_show`` — one POST to ``/api/show``."""
     import httpx
+
+    if _is_excitech_gateway_base_url(base_url):
+        return None
 
     server_url = _localhost_to_ipv4(base_url.rstrip("/"))
     if server_url.endswith("/v1"):
