@@ -7,16 +7,90 @@ endpoint and normalize the reply back into a chat-completions-like shape.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
+import re
 import time
+import uuid
 from types import SimpleNamespace
 from typing import Any, Dict, Iterable, List, Optional
 
 import httpx
 
 logger = logging.getLogger(__name__)
+
+
+_DSML_TAG_STEM = r"(?:[|｜]\s*){2}DSML(?:\s*[|｜]){2}"
+_DSML_TOOL_CALLS_RE = re.compile(
+    rf"<\s*{_DSML_TAG_STEM}\s*tool_calls\s*>(.*?)</\s*{_DSML_TAG_STEM}\s*tool_calls\s*>",
+    flags=re.DOTALL | re.IGNORECASE,
+)
+_DSML_INVOKE_RE = re.compile(
+    rf"<\s*{_DSML_TAG_STEM}\s*invoke\b([^>]*)>(.*?)</\s*{_DSML_TAG_STEM}\s*invoke\s*>",
+    flags=re.DOTALL | re.IGNORECASE,
+)
+_DSML_PARAM_RE = re.compile(
+    rf"<\s*{_DSML_TAG_STEM}\s*parameter\b([^>]*)>(.*?)</\s*{_DSML_TAG_STEM}\s*parameter\s*>",
+    flags=re.DOTALL | re.IGNORECASE,
+)
+_XML_ATTR_RE = re.compile(r'([A-Za-z_][A-Za-z0-9_-]*)\s*=\s*"([^"]*)"')
+
+
+def _extract_dsml_tool_calls(content: str) -> tuple[str, list[SimpleNamespace]]:
+    """Convert inline DSML emitted by the gateway into Hermes tool calls."""
+    if not isinstance(content, str) or "DSML" not in content.upper():
+        return content, []
+
+    parsed_calls: list[SimpleNamespace] = []
+    matched_blocks = False
+    for match in _DSML_TOOL_CALLS_RE.finditer(content):
+        matched_blocks = True
+        block = match.group(1) or ""
+        for invoke_index, invoke_match in enumerate(_DSML_INVOKE_RE.finditer(block)):
+            attrs = dict(_XML_ATTR_RE.findall(invoke_match.group(1) or ""))
+            tool_name = (attrs.get("name") or "").strip()
+            if not tool_name:
+                continue
+
+            arguments: dict[str, Any] = {}
+            for param_match in _DSML_PARAM_RE.finditer(invoke_match.group(2) or ""):
+                param_attrs = dict(_XML_ATTR_RE.findall(param_match.group(1) or ""))
+                param_name = (param_attrs.get("name") or "").strip()
+                if not param_name:
+                    continue
+                raw_value = (param_match.group(2) or "").strip()
+                if (param_attrs.get("string") or "").strip().lower() == "true":
+                    arguments[param_name] = raw_value
+                    continue
+                if raw_value == "":
+                    arguments[param_name] = ""
+                    continue
+                try:
+                    arguments[param_name] = json.loads(raw_value)
+                except (TypeError, ValueError):
+                    arguments[param_name] = raw_value
+
+            call_id = f"dsml_{tool_name}_{invoke_index}_{uuid.uuid4().hex[:12]}"
+            parsed_calls.append(
+                SimpleNamespace(
+                    id=call_id,
+                    call_id=call_id,
+                    response_item_id=None,
+                    type="function",
+                    extra_content=None,
+                    function=SimpleNamespace(
+                        name=tool_name,
+                        arguments=json.dumps(arguments, ensure_ascii=False),
+                    ),
+                )
+            )
+
+    if not matched_blocks:
+        return content, []
+    cleaned = _DSML_TOOL_CALLS_RE.sub("", content)
+    return re.sub(r"\n{3,}", "\n\n", cleaned).strip(), parsed_calls
 
 
 def _coerce_text_content(content: Any) -> str:
@@ -36,8 +110,35 @@ def _coerce_text_content(content: Any) -> str:
                 text = item.get("text")
                 if isinstance(text, str) and text:
                     pieces.append(text)
+                continue
+            if item.get("type") in {"image_url", "input_image"}:
+                image_value = item.get("image_url") or item.get("url")
+                if isinstance(image_value, dict):
+                    image_value = image_value.get("url")
+                if isinstance(image_value, str) and image_value:
+                    pieces.append(f"[image: {image_value}]")
+                else:
+                    pieces.append("[image attached]")
         return "\n".join(piece for piece in pieces if piece)
     return str(content)
+
+
+def _json_safe(value: Any) -> Any:
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, dict):
+        return {str(key): _json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(item) for item in value]
+    model_dump = getattr(value, "model_dump", None)
+    if callable(model_dump):
+        return _json_safe(model_dump())
+    to_dict = getattr(value, "to_dict", None)
+    if callable(to_dict):
+        return _json_safe(to_dict())
+    if hasattr(value, "__dict__"):
+        return _json_safe(vars(value))
+    return str(value)
 
 
 def _normalize_messages(messages: Any) -> list[dict[str, Any]]:
@@ -54,7 +155,7 @@ def _normalize_messages(messages: Any) -> list[dict[str, Any]]:
                 "content": _coerce_text_content(message.get("content")),
                 "name": message.get("name"),
                 "tool_call_id": message.get("tool_call_id"),
-                "tool_calls": message.get("tool_calls"),
+                "tool_calls": _json_safe(message.get("tool_calls")),
             }
         )
     return normalized
@@ -137,16 +238,34 @@ def _render_transcript(messages: list[dict[str, Any]]) -> str:
 
 
 def _build_input_text(messages: list[dict[str, Any]], tools: Any) -> str:
-    last_user = ""
-    for message in reversed(messages):
-        if message.get("role") == "user":
-            last_user = str(message.get("content") or "").strip()
-            if last_user:
-                break
-
     sections: list[str] = []
-    if last_user:
-        sections.append(last_user)
+    instruction_messages = [
+        message
+        for message in messages
+        if message.get("role") in {"system", "developer"}
+    ]
+    latest_user_index = next(
+        (
+            index
+            for index in range(len(messages) - 1, -1, -1)
+            if messages[index].get("role") == "user"
+        ),
+        0,
+    )
+    current_turn = [
+        message
+        for message in messages[latest_user_index:]
+        if message.get("role") not in {"system", "developer"}
+    ]
+    transcript_messages = [*instruction_messages, *current_turn]
+    transcript = _render_transcript(transcript_messages)
+    if transcript:
+        sections.append(
+            "Hermes instructions and current turn:\n"
+            f"{transcript}\n\n"
+            "Continue from the final message above. Preserve the stated roles; "
+            "a TOOL message is the result of the preceding assistant tool call."
+        )
     tool_hints = _render_tool_hints(tools)
     if tool_hints:
         sections.append(tool_hints)
@@ -154,27 +273,22 @@ def _build_input_text(messages: list[dict[str, Any]], tools: Any) -> str:
     return "\n\n".join(section for section in sections if section).strip()
 
 
-def _resolve_endpoint(base_url: str, *, stream: bool) -> str:
+def _resolve_endpoint(base_url: str) -> str:
     base = str(base_url or "").rstrip("/")
     if not base:
-        gateway_root = os.getenv(
+        base = os.getenv(
             "EXCITECH_GATEWAY_API_URL", "https://api-ai-kita.excitech.id"
         ).strip().rstrip("/")
-        base = f"{gateway_root}/v1/openai"
 
-    for suffix in ("/chat/completions", "/ai/chat/stream", "/ai/chat", "/openai"):
-        if base.endswith(suffix):
-            base = base[: -len(suffix)]
-            break
-
+    if base.endswith("/v1/ai/chat"):
+        return base
+    # Migrate base URLs saved by older Hermes releases. This only rewrites the
+    # address; requests still go exclusively to the orchestration endpoint.
+    if base.endswith("/v1/openai"):
+        return f"{base[:-len('/openai')]}/ai/chat"
     if base.endswith("/v1"):
-        prefix = base
-    elif "/v1/" not in base and not base.endswith("/v1"):
-        prefix = base.rstrip("/") + "/v1"
-    else:
-        prefix = base.rstrip("/")
-
-    return f"{prefix}/ai/chat/stream" if stream else f"{prefix}/ai/chat"
+        return f"{base}/ai/chat"
+    return f"{base}/v1/ai/chat"
 
 
 def _default_gateway_agent(model: str, configured_agent: str) -> str:
@@ -236,8 +350,6 @@ def _normalize_chat_response(payload: dict[str, Any], *, fallback_model: str) ->
     content = output.get("content")
     parsed_tool_calls = None
     if isinstance(content, str) and content:
-        from agent.chat_completion_helpers import _extract_dsml_tool_calls
-
         content, extracted_tool_calls = _extract_dsml_tool_calls(content)
         if extracted_tool_calls:
             parsed_tool_calls = extracted_tool_calls
@@ -306,6 +418,29 @@ class _ExcitechGatewayAIChatNamespace:
         self.completions = _ExcitechGatewayAIChatCompletions(owner)
 
 
+class _AsyncExcitechGatewayAIChatCompletions:
+    def __init__(self, owner: "AsyncExcitechGatewayAIChatClient") -> None:
+        self._owner = owner
+
+    async def create(self, **kwargs):
+        result = await asyncio.to_thread(
+            self._owner._sync.chat.completions.create, **kwargs
+        )
+        if not kwargs.get("stream"):
+            return result
+
+        async def _iterate():
+            for chunk in result:
+                yield chunk
+
+        return _iterate()
+
+
+class _AsyncExcitechGatewayAIChatNamespace:
+    def __init__(self, owner: "AsyncExcitechGatewayAIChatClient") -> None:
+        self.completions = _AsyncExcitechGatewayAIChatCompletions(owner)
+
+
 class ExcitechGatewayAIChatClient:
     """OpenAI-client-compatible facade backed by `/v1/ai/chat`."""
 
@@ -331,7 +466,6 @@ class ExcitechGatewayAIChatClient:
         self.gateway_domain = str(gateway_domain or "").strip() or os.getenv("EXCITECH_GATEWAY_DOMAIN", "").strip() or "general"
         self.gateway_agent = str(gateway_agent or "").strip() or os.getenv("EXCITECH_GATEWAY_AGENT", "").strip()
         self.provider_policy = _normalize_provider_policy(provider_policy) or _normalize_provider_policy(os.getenv("EXCITECH_GATEWAY_PROVIDER_POLICY", ""))
-        self._owns_http_client = http_client is None
         self._http_client = http_client or httpx.Client(timeout=self.timeout)
         self.chat = _ExcitechGatewayAIChatNamespace(self)
 
@@ -385,7 +519,7 @@ class ExcitechGatewayAIChatClient:
         return payload
 
     def _post_chat(self, payload: dict[str, Any], *, fallback_model: str) -> SimpleNamespace:
-        url = _resolve_endpoint(self.base_url, stream=False)
+        url = _resolve_endpoint(self.base_url)
         resp = self._http_client.post(url, headers=self._headers(), json=payload, timeout=self.timeout)
         resp.raise_for_status()
         try:
@@ -453,5 +587,29 @@ class ExcitechGatewayAIChatClient:
         return _iter()
 
     def close(self) -> None:
-        if self._owns_http_client:
-            self._http_client.close()
+        # Hermes supplies a fresh keepalive client per provider client. Closing
+        # it here is required during model switches and credential rotation so
+        # sockets do not accumulate across rebuilds.
+        close = getattr(self._http_client, "close", None)
+        if callable(close):
+            close()
+
+
+class AsyncExcitechGatewayAIChatClient:
+    """Async facade used by Hermes auxiliary tasks.
+
+    The gateway endpoint is synchronous, so the blocking request is isolated
+    in a worker thread while preserving the AsyncOpenAI-shaped interface.
+    """
+
+    def __init__(self, sync_client: ExcitechGatewayAIChatClient) -> None:
+        self._sync = sync_client
+        self.api_key = sync_client.api_key
+        self.base_url = sync_client.base_url
+        self.chat = _AsyncExcitechGatewayAIChatNamespace(self)
+
+    async def close(self) -> None:
+        await asyncio.to_thread(self._sync.close)
+
+    async def aclose(self) -> None:
+        await self.close()
