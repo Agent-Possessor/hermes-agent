@@ -6,11 +6,13 @@ import { Input } from "@nous-research/ui/ui/components/input";
 import { Label } from "@nous-research/ui/ui/components/label";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import type { GatewayClient } from "@/lib/gatewayClient";
-import { Check, Search, X } from "lucide-react";
+import { Check, RefreshCw, Search, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { cn, themedBody } from "@/lib/utils";
 import { fuzzyRank } from "@/lib/fuzzy";
+import { queryMatchesProviderOnly } from "@/lib/model-picker-filter";
+import { modelSearchText } from "@/lib/model-search-text";
 
 /**
  * Two-stage model picker modal.
@@ -60,7 +62,6 @@ interface ConfigSetResponse extends ExpensiveModelConfirmResponse {
 interface PendingExpensiveConfirm {
   excitechGatewayAgent?: string;
   excitechGatewayDomain?: string;
-  excitechGatewayMode?: string;
   message: string;
   model: string;
   persistGlobal: boolean;
@@ -74,12 +75,11 @@ interface Props {
   onSubmit?(slashCommand: string): void;
 
   /** Standalone-mode: when present (and onSubmit absent), picker calls onApply. */
-  loader?(): Promise<ModelOptionsResponse>;
+  loader?(options?: { refresh?: boolean }): Promise<ModelOptionsResponse>;
   onApply?(args: {
     confirmExpensiveModel?: boolean;
     excitechGatewayAgent?: string;
     excitechGatewayDomain?: string;
-    excitechGatewayMode?: string;
     provider: string;
     model: string;
     persistGlobal: boolean;
@@ -93,7 +93,6 @@ interface Props {
   /** If true, hides "Persist globally" checkbox — always saves to config.yaml. */
   alwaysGlobal?: boolean;
   allowExcitechGatewaySettings?: boolean;
-  initialExcitechGatewayMode?: string;
   initialExcitechGatewayDomain?: string;
   initialExcitechGatewayAgent?: string;
 }
@@ -109,7 +108,6 @@ export function ModelPickerDialog(props: Props) {
     title = "Switch Model",
     alwaysGlobal = false,
     allowExcitechGatewaySettings = false,
-    initialExcitechGatewayMode = "openai-proxy",
     initialExcitechGatewayDomain = "general",
     initialExcitechGatewayAgent = "assistant",
   } = props;
@@ -125,43 +123,80 @@ export function ModelPickerDialog(props: Props) {
   const [query, setQuery] = useState("");
   const [persistGlobal, setPersistGlobal] = useState(alwaysGlobal);
   const [applying, setApplying] = useState(false);
-  const [excitechGatewayMode, setExcitechGatewayMode] =
-    useState(initialExcitechGatewayMode || "openai-proxy");
-  const [excitechGatewayDomain, setExcitechGatewayDomain] =
-    useState(initialExcitechGatewayDomain || "general");
-  const [excitechGatewayAgent, setExcitechGatewayAgent] =
-    useState(initialExcitechGatewayAgent || "assistant");
+  const [excitechGatewayDomain, setExcitechGatewayDomain] = useState(
+    initialExcitechGatewayDomain || "general",
+  );
+  const [excitechGatewayAgent, setExcitechGatewayAgent] = useState(
+    initialExcitechGatewayAgent || "assistant",
+  );
+  const [refreshing, setRefreshing] = useState(false);
   const [pendingConfirm, setPendingConfirm] =
     useState<PendingExpensiveConfirm | null>(null);
   const closedRef = useRef(false);
+
+  const applyOptions = (r: ModelOptionsResponse) => {
+    const next = r?.providers ?? [];
+    setProviders(next);
+    setCurrentModel(String(r?.model ?? ""));
+    setCurrentProviderSlug(String(r?.provider ?? ""));
+    setSelectedSlug((prev) => {
+      if (prev && next.some((p) => p.slug === prev)) return prev;
+      return (next.find((p) => p.is_current) ?? next[0])?.slug ?? "";
+    });
+    setSelectedModel("");
+  };
+
+  const requestOptions = (refresh = false) =>
+    standalone
+      ? (loader as (options?: { refresh?: boolean }) => Promise<ModelOptionsResponse>)({
+          refresh,
+        })
+      : (gw as GatewayClient).request<ModelOptionsResponse>(
+          "model.options",
+          {
+            ...(sessionId ? { session_id: sessionId } : {}),
+            ...(refresh ? { refresh: true } : {}),
+            // Dashboard picker mirrors the TUI: full provider universe with
+            // setup warnings. The backend now defaults to the configured
+            // subset (#56974), so opt into unconfigured rows explicitly.
+            include_unconfigured: true,
+          },
+        );
+
+  const refreshOptions = () => {
+    setError(null);
+    setRefreshing(true);
+
+    requestOptions(true)
+      .then((r) => {
+        if (closedRef.current) return;
+        applyOptions(r);
+      })
+      .catch((e) => {
+        if (closedRef.current) return;
+        setError(e instanceof Error ? e.message : String(e));
+      })
+      .finally(() => {
+        if (closedRef.current) return;
+        setRefreshing(false);
+      });
+  };
 
   // Load providers + models on open.
   useEffect(() => {
     closedRef.current = false;
 
-    const promise = standalone
-      ? (loader as () => Promise<ModelOptionsResponse>)()
-      : (gw as GatewayClient).request<ModelOptionsResponse>(
-        "model.options",
-        sessionId ? { session_id: sessionId } : {},
-      );
-
-    promise
+    requestOptions()
       .then((r) => {
         if (closedRef.current) return;
-        const next = r?.providers ?? [];
-        setProviders(next);
-        setCurrentModel(String(r?.model ?? ""));
-        setCurrentProviderSlug(String(r?.provider ?? ""));
-        setSelectedSlug(
-          (next.find((p) => p.is_current) ?? next[0])?.slug ?? "",
-        );
-        setSelectedModel("");
-        setLoading(false);
+        applyOptions(r);
       })
       .catch((e) => {
         if (closedRef.current) return;
         setError(e instanceof Error ? e.message : String(e));
+      })
+      .finally(() => {
+        if (closedRef.current) return;
         setLoading(false);
       });
 
@@ -193,28 +228,19 @@ export function ModelPickerDialog(props: Props) {
     allowExcitechGatewaySettings &&
     selectedProviderSlug === "excitech-gateway";
 
-  useEffect(() => {
-    // Providers haven't loaded yet (selectedSlug starts as "" until the
-    // fetch resolves) — don't clobber the seeded initial*/config values
-    // with the hardcoded defaults while we wait.
-    if (!selectedProviderSlug) return;
-    if (selectedProviderSlug !== "excitech-gateway") {
-      setExcitechGatewayMode("openai-proxy");
-      setExcitechGatewayDomain("general");
-      setExcitechGatewayAgent("assistant");
-      return;
-    }
-
-    const lowered = selectedModel.toLowerCase();
+  const selectModel = (model: string) => {
+    setSelectedModel(model);
+    if (selectedProviderSlug !== "excitech-gateway") return;
     setExcitechGatewayAgent((current) => {
       if (current && current !== "assistant") return current;
+      const lowered = model.toLowerCase();
       if (lowered.includes("reasoning")) return "analyst";
       if (lowered.includes("coder") || lowered.includes("code")) {
         return "developer";
       }
       return "assistant";
     });
-  }, [selectedModel, selectedProviderSlug]);
+  };
 
   const models = useMemo(
     () => selectedProvider?.models ?? [],
@@ -226,25 +252,49 @@ export function ModelPickerDialog(props: Props) {
   // Fuzzy-ranked providers: match on name + slug + the provider's model ids so
   // typing a model name surfaces its provider (preserves the prior behaviour
   // where a model match also revealed its provider).
-  const filteredProviders = useMemo(
-    () =>
-      fuzzyRank(
-        providers,
-        trimmedQuery,
-        (p) => `${p.name} ${p.slug} ${(p.models ?? []).join(" ")}`,
-      ).map((r) => r.item),
-    [providers, trimmedQuery],
+  //
+  // With no query, float providers that actually have models to the top
+  // (stable within each group). A fresh install lists ~40 providers and only
+  // a couple are configured — burying "OpenRouter · 37 models" under a wall
+  // of "0 models" rows made the picker feel broken.
+  const filteredProviders = useMemo(() => {
+    const ranked = fuzzyRank(
+      providers,
+      trimmedQuery,
+      (p) => `${p.name} ${p.slug} ${(p.models ?? []).join(" ")}`,
+    ).map((r) => r.item);
+    if (trimmedQuery) return ranked;
+    const withModels = ranked.filter((p) => (p.models ?? []).length > 0);
+    const withoutModels = ranked.filter((p) => (p.models ?? []).length === 0);
+    return [...withModels, ...withoutModels];
+  }, [providers, trimmedQuery]);
+
+  // A query that matched the SELECTED provider by name/slug (not its models)
+  // located that provider — it shouldn't also hide that provider's models
+  // just because their ids don't share a substring with the provider name
+  // (e.g. typing "aws" to find "AWS Build" then finding zero of its Claude
+  // model ids contain "aws"). Fall back to an unfiltered model list in that
+  // case; a query that also matches a model id keeps filtering normally.
+  const queryMatchesSelectedProviderOnly = useMemo(
+    () => queryMatchesProviderOnly(selectedProvider, models, trimmedQuery),
+    [trimmedQuery, selectedProvider, models],
   );
 
   // Fuzzy-ranked models carrying the matched character positions so the model
-  // list can highlight why each entry matched.
+  // list can highlight why each entry matched. modelSearchText adds aliases
+  // for brand-less wire ids (e.g. Kimi Coding `k3` ↔ search "kimi").
   const filteredModels = useMemo(
     () =>
-      fuzzyRank(models, trimmedQuery, (m) => m).map((r) => ({
+      fuzzyRank(
+        models,
+        queryMatchesSelectedProviderOnly ? "" : trimmedQuery,
+        modelSearchText,
+      ).map((r) => ({
         model: r.item,
-        positions: r.positions,
+        // Positions may land in alias suffixes — keep only in-id highlights.
+        positions: r.positions.filter((i) => i >= 0 && i < r.item.length),
       })),
-    [models, trimmedQuery],
+    [models, trimmedQuery, queryMatchesSelectedProviderOnly],
   );
 
   const canConfirm = !!selectedProvider && !!selectedModel && !applying;
@@ -258,9 +308,6 @@ export function ModelPickerDialog(props: Props) {
     const shouldPersistGlobal = forced?.persistGlobal ?? persistGlobal;
     const providerUsesExcitechSettings =
       allowExcitechGatewaySettings && providerSlug === "excitech-gateway";
-    const gatewayMode =
-      forced?.excitechGatewayMode ??
-      (providerUsesExcitechSettings ? excitechGatewayMode : undefined);
     const gatewayDomain =
       forced?.excitechGatewayDomain ??
       (providerUsesExcitechSettings
@@ -281,7 +328,6 @@ export function ModelPickerDialog(props: Props) {
           confirmExpensiveModel,
           excitechGatewayAgent: gatewayAgent || undefined,
           excitechGatewayDomain: gatewayDomain || undefined,
-          excitechGatewayMode: gatewayMode || undefined,
           provider: providerSlug,
           model,
           persistGlobal: shouldPersistGlobal,
@@ -290,7 +336,6 @@ export function ModelPickerDialog(props: Props) {
           setPendingConfirm({
             excitechGatewayAgent: gatewayAgent || undefined,
             excitechGatewayDomain: gatewayDomain || undefined,
-            excitechGatewayMode: gatewayMode || undefined,
             provider: providerSlug,
             model,
             persistGlobal: shouldPersistGlobal,
@@ -356,7 +401,7 @@ export function ModelPickerDialog(props: Props) {
   // Toast.tsx for the same pattern.
   return createPortal(
     <div
-      className="fixed inset-0 z-100 flex items-center justify-center bg-background/85 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-background/85 p-4"
       onClick={(e) => e.target === e.currentTarget && onClose()}
       role="dialog"
       aria-modal="true"
@@ -410,6 +455,10 @@ export function ModelPickerDialog(props: Props) {
             onSelect={(slug) => {
               setSelectedSlug(slug);
               setSelectedModel("");
+              if (slug !== "excitech-gateway") {
+                setExcitechGatewayDomain("general");
+                setExcitechGatewayAgent("assistant");
+              }
             }}
           />
 
@@ -420,10 +469,27 @@ export function ModelPickerDialog(props: Props) {
             selectedModel={selectedModel}
             currentModel={currentModel}
             currentProviderSlug={currentProviderSlug}
-            onSelect={setSelectedModel}
+            onSelect={selectModel}
             onConfirm={(m) => {
-              setSelectedModel(m);
+              selectModel(m);
+              const lowered = m.toLowerCase();
+              const inferredGatewayAgent =
+                excitechGatewayAgent !== "assistant"
+                  ? excitechGatewayAgent
+                  : lowered.includes("reasoning")
+                    ? "analyst"
+                    : lowered.includes("coder") || lowered.includes("code")
+                      ? "developer"
+                      : "assistant";
               void applySelection(false, {
+                excitechGatewayAgent:
+                  selectedProviderSlug === "excitech-gateway"
+                    ? inferredGatewayAgent
+                    : undefined,
+                excitechGatewayDomain:
+                  selectedProviderSlug === "excitech-gateway"
+                    ? excitechGatewayDomain
+                    : undefined,
                 provider: selectedProvider?.slug ?? "",
                 model: m,
                 persistGlobal,
@@ -437,27 +503,15 @@ export function ModelPickerDialog(props: Props) {
           <section className="border-t border-border px-5 py-4">
             <div className="mb-3">
               <h3 className="font-mondwest text-sm tracking-wider">
-                Excitech Gateway Mode
+                Excitech Gateway
               </h3>
               <p className="mt-1 text-xs text-muted-foreground">
-                `/v1/ai/chat` is a transport mode, not a separate model entry.
+                Requests use `/v1/ai/chat`; configure its routing metadata
+                below.
               </p>
             </div>
 
-            <div className="grid gap-3 md:grid-cols-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="excitech-gateway-mode">Mode</Label>
-                <select
-                  id="excitech-gateway-mode"
-                  className="h-9 w-full border border-border bg-background px-3 text-sm"
-                  onChange={(e) => setExcitechGatewayMode(e.target.value)}
-                  value={excitechGatewayMode}
-                >
-                  <option value="openai-proxy">OpenAI proxy</option>
-                  <option value="ai-chat">AI chat orchestration</option>
-                </select>
-              </div>
-
+            <div className="grid gap-3 md:grid-cols-2">
               <div className="space-y-1.5">
                 <Label htmlFor="excitech-gateway-domain">Domain</Label>
                 <Input
@@ -506,6 +560,14 @@ export function ModelPickerDialog(props: Props) {
           )}
 
           <div className="flex items-center gap-2 ml-auto">
+            <Button
+              outlined
+              onClick={refreshOptions}
+              disabled={applying || loading || refreshing}
+            >
+              {refreshing ? <Spinner /> : <RefreshCw className="h-3.5 w-3.5" />}
+              Refresh Models
+            </Button>
             <Button outlined onClick={onClose} disabled={applying}>
               Cancel
             </Button>
@@ -584,8 +646,9 @@ function ProviderColumn({
             key={p.slug}
             active={active}
             onClick={() => onSelect(p.slug)}
-            className={`items-start text-xs border-l-2 ${active ? "border-l-primary" : "border-l-transparent"
-              }`}
+            className={`items-start text-xs border-l-2 ${
+              active ? "border-l-primary" : "border-l-transparent"
+            }`}
           >
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5">
