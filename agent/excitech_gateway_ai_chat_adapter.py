@@ -257,6 +257,12 @@ def _build_input_text(messages: list[dict[str, Any]], tools: Any) -> str:
         for message in messages[latest_user_index:]
         if message.get("role") not in {"system", "developer"}
     ]
+    latest_user_text = ""
+    if 0 <= latest_user_index < len(messages):
+        latest_user_text = str(messages[latest_user_index].get("content") or "").strip()
+    if latest_user_text:
+        sections.append(latest_user_text)
+
     transcript_messages = [*instruction_messages, *current_turn]
     transcript = _render_transcript(transcript_messages)
     if transcript:
