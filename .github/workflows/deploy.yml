@@ -16,13 +16,15 @@ jobs:
         env:
           EXCITECH_GATEWAY_API_KEY: ${{ secrets.EXCITECH_GATEWAY_API_KEY }}
           EXCITECH_GATEWAY_API_URL: ${{ secrets.EXCITECH_GATEWAY_API_URL }}
+          HERMES_DASHBOARD_BASIC_AUTH_USERNAME: ${{ secrets.HERMES_DASHBOARD_BASIC_AUTH_USERNAME }}
+          HERMES_DASHBOARD_BASIC_AUTH_PASSWORD: ${{ secrets.HERMES_DASHBOARD_BASIC_AUTH_PASSWORD }}
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SERVER_PORT || '22' }}
           command_timeout: 15m
-          envs: EXCITECH_GATEWAY_API_KEY,EXCITECH_GATEWAY_API_URL
+          envs: EXCITECH_GATEWAY_API_KEY,EXCITECH_GATEWAY_API_URL,HERMES_DASHBOARD_BASIC_AUTH_USERNAME,HERMES_DASHBOARD_BASIC_AUTH_PASSWORD
           script: |
             set -e
             echo "🚀 Starting Hermes Agent Auto-Deployment (Docker Mode)..."
@@ -53,6 +55,12 @@ jobs:
             if [ -z "${EXCITECH_GATEWAY_API_URL:-}" ]; then
               unset EXCITECH_GATEWAY_API_URL
             fi
+            if [ -z "${HERMES_DASHBOARD_BASIC_AUTH_USERNAME:-}" ]; then
+              unset HERMES_DASHBOARD_BASIC_AUTH_USERNAME
+            fi
+            if [ -z "${HERMES_DASHBOARD_BASIC_AUTH_PASSWORD:-}" ]; then
+              unset HERMES_DASHBOARD_BASIC_AUTH_PASSWORD
+            fi
 
             # docker compose also reads PROJECT_DIR/.env. Do not print or
             # source that file: it may contain unrelated production secrets.
@@ -64,14 +72,28 @@ jobs:
               exit 1
             fi
 
+            if [ -z "${HERMES_DASHBOARD_BASIC_AUTH_USERNAME:-}" ] && \
+               ! grep -Eq '^HERMES_DASHBOARD_BASIC_AUTH_USERNAME=.+$' .env 2>/dev/null; then
+              echo "❌ Missing HERMES_DASHBOARD_BASIC_AUTH_USERNAME. Configure the GitHub Actions secret or PROJECT_DIR/.env on the VPS."
+              exit 1
+            fi
+
+            if [ -z "${HERMES_DASHBOARD_BASIC_AUTH_PASSWORD:-}" ] && \
+               ! grep -Eq '^HERMES_DASHBOARD_BASIC_AUTH_PASSWORD=.+$' .env 2>/dev/null; then
+              echo "❌ Missing HERMES_DASHBOARD_BASIC_AUTH_PASSWORD. Configure the GitHub Actions secret or PROJECT_DIR/.env on the VPS."
+              exit 1
+            fi
+
             echo "🐳 4. Deploying Docker Containers (gateway & dashboard)..."
             HERMES_UID=$(id -u) HERMES_GID=$(id -g) sudo -E docker compose up -d --build
 
             echo "📊 5. Checking active Docker containers..."
             sudo docker ps | grep -i hermes || true
 
-            echo "🔐 6. Verifying Excitech credentials reached both containers..."
+            echo "🔐 6. Verifying runtime credentials reached the containers..."
             sudo docker exec hermes sh -lc 'test -n "$EXCITECH_GATEWAY_API_KEY"'
             sudo docker exec hermes-dashboard sh -lc 'test -n "$EXCITECH_GATEWAY_API_KEY"'
+            sudo docker exec hermes-dashboard sh -lc 'test -n "$HERMES_DASHBOARD_BASIC_AUTH_USERNAME"'
+            sudo docker exec hermes-dashboard sh -lc 'test -n "$HERMES_DASHBOARD_BASIC_AUTH_PASSWORD"'
 
             echo "✅ Deployment complete! Hermes Agent running safely in Docker."
