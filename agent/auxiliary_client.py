@@ -220,6 +220,7 @@ def _create_openai_client(*, api_key: str, base_url: str, **kwargs: Any) -> Any:
     kwargs.setdefault("max_retries", 0)
     if (
         base_url_host_matches(base_url, "api-ai-kita.excitech.id")
+        or str(base_url or "").rstrip("/").endswith("/v1/agent/chat/completions")
         or str(base_url or "").rstrip("/").endswith("/v1/ai/chat")
     ):
         from agent.excitech_gateway_ai_chat_adapter import ExcitechGatewayAIChatClient

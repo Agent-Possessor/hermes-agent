@@ -188,7 +188,7 @@ def _default_excitech_gateway_agent(model_name: str, current_agent: str = "") ->
 
 
 def _prompt_excitech_gateway_settings(config: dict, selected_model: str) -> dict[str, str]:
-    """Prompt for the routing metadata sent to ``/v1/ai/chat``."""
+    """Prompt for routing metadata sent to the agent completion endpoint."""
     model_cfg = config.get("model")
     if not isinstance(model_cfg, dict):
         model_cfg = {}
@@ -201,7 +201,7 @@ def _prompt_excitech_gateway_settings(config: dict, selected_model: str) -> dict
     }
 
     print()
-    print("Excitech Gateway uses /v1/ai/chat with its own domain/agent router.")
+    print("Excitech Gateway uses /v1/agent/chat/completions with provider fallback.")
     try:
         domain = input(f"Domain [{result['domain']}]: ").strip()
     except (KeyboardInterrupt, EOFError):
@@ -3053,7 +3053,7 @@ def _model_flow_api_key_provider(config, provider_id, current_model=""):
 
         print(f"Default model set to: {selected} (via {pconfig.name})")
         if provider_id == "excitech-gateway":
-            print("Gateway endpoint: /v1/ai/chat")
+            print("Gateway endpoint: /v1/agent/chat/completions")
     else:
         print("No change.")
 

@@ -655,7 +655,8 @@ def _is_openrouter_base_url(base_url: str) -> bool:
 def _is_excitech_gateway_base_url(base_url: str) -> bool:
     normalized = _normalize_base_url(base_url).rstrip("/").lower()
     return bool(normalized) and (
-        normalized.endswith("/v1/ai/chat")
+        normalized.endswith("/v1/agent/chat/completions")
+        or normalized.endswith("/v1/ai/chat")
         or base_url_host_matches(normalized, "api-ai-kita.excitech.id")
     )
 

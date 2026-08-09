@@ -193,7 +193,7 @@ HERMES_OVERLAYS: Dict[str, HermesOverlay] = {
         transport="openai_chat",
         is_aggregator=True,
         extra_env_vars=("EXCITECH_GATEWAY_API_KEY",),
-        base_url_override="https://api-ai-kita.excitech.id/v1/ai/chat",
+        base_url_override="https://api-ai-kita.excitech.id/v1/agent/chat/completions",
         base_url_env_var="EXCITECH_GATEWAY_API_URL",
     ),
     "arcee": HermesOverlay(

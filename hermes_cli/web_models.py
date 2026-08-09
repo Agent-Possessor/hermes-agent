@@ -144,8 +144,8 @@ class ModelAssignment(BaseModel):
     # endpoint that requires auth works from the GUI. Mirrors the key the
     # ``hermes model`` custom flow collects.
     api_key: str = ""
-    # Excitech /v1/ai/chat routing hints. They are persisted only when the
-    # selected main provider is excitech-gateway.
+    # Excitech agent-completion routing hints. They are persisted only when
+    # the selected main provider is excitech-gateway.
     excitech_gateway_domain: str = ""
     excitech_gateway_agent: str = ""
     confirm_expensive_model: bool = False
