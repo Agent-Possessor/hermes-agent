@@ -3,15 +3,19 @@ from __future__ import annotations
 import asyncio
 from types import SimpleNamespace
 
+import pytest
+
 from agent.excitech_gateway_ai_chat_adapter import (
     AsyncExcitechGatewayAIChatClient,
+    ExcitechGatewayError,
     ExcitechGatewayAIChatClient,
 )
 
 
 class _FakeResponse:
-    def __init__(self, payload):
+    def __init__(self, payload, status_code=200):
         self._payload = payload
+        self.status_code = status_code
 
     def raise_for_status(self):
         return None
@@ -21,8 +25,9 @@ class _FakeResponse:
 
 
 class _FakeHTTPClient:
-    def __init__(self, payload):
+    def __init__(self, payload, status_code=200):
         self.payload = payload
+        self.status_code = status_code
         self.calls = []
 
     def post(self, url, *, headers=None, json=None, timeout=None):
@@ -34,7 +39,48 @@ class _FakeHTTPClient:
                 "timeout": timeout,
             }
         )
-        return _FakeResponse(self.payload)
+        return _FakeResponse(self.payload, self.status_code)
+
+
+def test_ai_chat_adapter_surfaces_gateway_candidate_attempts():
+    http_client = _FakeHTTPClient(
+        {
+            "success": False,
+            "message": "Agent completion failed",
+            "error": {
+                "details": {
+                    "attempts": [
+                        {
+                            "provider": "nvidia_nim",
+                            "model": "stepfun-ai/step-3.7-flash",
+                            "error": "provider status=400 code=BAD_REQUEST",
+                        },
+                        {
+                            "provider": "openrouter",
+                            "model": "anthropic/claude-sonnet-4",
+                            "error": "provider status=402 code=PAYMENT_REQUIRED",
+                        },
+                    ]
+                }
+            },
+        },
+        status_code=502,
+    )
+    client = ExcitechGatewayAIChatClient(
+        api_key="ak_test",
+        base_url="https://api-ai-kita.excitech.id/v1/agent/chat/completions",
+        http_client=http_client,
+    )
+
+    with pytest.raises(ExcitechGatewayError) as raised:
+        client.chat.completions.create(
+            model="reasoning-main",
+            messages=[{"role": "user", "content": "analyze"}],
+        )
+
+    assert raised.value.status_code == 502
+    assert "nvidia_nim/stepfun-ai/step-3.7-flash" in str(raised.value)
+    assert "openrouter/anthropic/claude-sonnet-4" in str(raised.value)
 
 
 def test_ai_chat_adapter_maps_payload_and_response_metadata():
