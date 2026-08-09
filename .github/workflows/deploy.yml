@@ -85,7 +85,7 @@ jobs:
             fi
 
             echo "🐳 4. Deploying Docker Containers (gateway & dashboard)..."
-            HERMES_UID=$(id -u) HERMES_GID=$(id -g) sudo -E docker compose up -d --build
+            HERMES_UID=$(id -u) HERMES_GID=$(id -g) sudo -E docker compose up -d --build --force-recreate
 
             echo "📊 5. Checking active Docker containers..."
             sudo docker ps | grep -i hermes || true
@@ -95,5 +95,26 @@ jobs:
             sudo docker exec hermes-dashboard sh -lc 'test -n "$EXCITECH_GATEWAY_API_KEY"'
             sudo docker exec hermes-dashboard sh -lc 'test -n "$HERMES_DASHBOARD_BASIC_AUTH_USERNAME"'
             sudo docker exec hermes-dashboard sh -lc 'test -n "$HERMES_DASHBOARD_BASIC_AUTH_PASSWORD"'
+
+            echo "🩺 7. Waiting for the password-gated dashboard..."
+            DASHBOARD_READY=0
+            for attempt in $(seq 1 30); do
+              DASHBOARD_STATUS=$(sudo docker exec hermes-dashboard sh -lc \
+                'curl -fsS http://127.0.0.1:9119/api/status' 2>/dev/null || true)
+              if printf '%s' "$DASHBOARD_STATUS" \
+                   | grep -Eq '"auth_required"[[:space:]]*:[[:space:]]*true' && \
+                 printf '%s' "$DASHBOARD_STATUS" \
+                   | grep -Eq '"auth_providers"[[:space:]]*:[[:space:]]*\[[^]]*"basic"'; then
+                DASHBOARD_READY=1
+                break
+              fi
+              sleep 2
+            done
+
+            if [ "$DASHBOARD_READY" -ne 1 ]; then
+              echo "❌ Dashboard did not become ready with authentication enabled."
+              sudo docker logs --tail 120 hermes-dashboard || true
+              exit 1
+            fi
 
             echo "✅ Deployment complete! Hermes Agent running safely in Docker."
