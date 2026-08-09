@@ -100,7 +100,9 @@ jobs:
             echo "📊 6. Checking active Docker containers..."
             sudo docker ps | grep -i hermes || true
 
-            echo "🔐 7. Verifying runtime credentials reached the containers..."
+            echo "🔐 7. Verifying container roles and runtime credentials..."
+            sudo docker exec hermes sh -lc 'test "$HERMES_DASHBOARD" = "0"'
+            sudo docker exec hermes-dashboard sh -lc 'test "$HERMES_DASHBOARD" = "1"'
             sudo docker exec hermes sh -lc 'test -n "$EXCITECH_GATEWAY_API_KEY"'
             sudo docker exec hermes-dashboard sh -lc 'test -n "$EXCITECH_GATEWAY_API_KEY"'
             sudo docker exec hermes-dashboard sh -lc 'test -n "$HERMES_DASHBOARD_BASIC_AUTH_USERNAME"'
