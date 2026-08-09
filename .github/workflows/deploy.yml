@@ -59,7 +59,7 @@ jobs:
             elif command -v systemctl >/dev/null 2>&1 && systemctl --user is-active --quiet hermes-gateway; then
               systemctl --user restart hermes-gateway || true
             elif command -v docker >/dev/null 2>&1 && [ -f "docker-compose.yml" ]; then
-              docker compose restart || true
+              sudo docker compose restart || docker compose restart || true
             fi
 
             echo "✅ Deployment complete! Hermes Agent updated safely."
