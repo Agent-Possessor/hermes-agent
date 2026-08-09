@@ -38,6 +38,9 @@ services:
     environment:
       - HERMES_UID=${HERMES_UID:-10000}
       - HERMES_GID=${HERMES_GID:-10000}
+      # This container runs only the messaging gateway. Explicitly disable the
+      # image's optional supervised dashboard so port 9119 has a single owner.
+      - HERMES_DASHBOARD=0
       # Excitech Gateway is a centrally managed provider. Pass the credential
       # into the runtime container instead of asking each dashboard user to
       # paste it. Production deployment validates this value before startup;
@@ -78,6 +81,12 @@ services:
     environment:
       - HERMES_UID=${HERMES_UID:-10000}
       - HERMES_GID=${HERMES_GID:-10000}
+      # Run the dashboard through the image's built-in s6 service. Do not also
+      # use `command: ["dashboard", ...]`, which would start a second process
+      # competing for the same port.
+      - HERMES_DASHBOARD=1
+      - HERMES_DASHBOARD_HOST=0.0.0.0
+      - HERMES_DASHBOARD_PORT=9119
       # The dashboard builds the provider/model inventory in its own process,
       # so it needs the same provider credential as the gateway container.
       - EXCITECH_GATEWAY_API_KEY=${EXCITECH_GATEWAY_API_KEY:-}
@@ -87,7 +96,7 @@ services:
       # credential is missing.
       - HERMES_DASHBOARD_BASIC_AUTH_USERNAME=${HERMES_DASHBOARD_BASIC_AUTH_USERNAME:-}
       - HERMES_DASHBOARD_BASIC_AUTH_PASSWORD=${HERMES_DASHBOARD_BASIC_AUTH_PASSWORD:-}
-    # A non-loopback bind is required to engage Hermes' dashboard auth gate.
-    # Keep port 9119 blocked from the public internet and expose it only through
-    # the TLS reverse proxy.
-    command: ["dashboard", "--host", "0.0.0.0", "--no-open"]
+    # Keep the container's main process alive while s6 owns and supervises the
+    # single dashboard process configured above. The non-loopback bind engages
+    # Hermes' auth gate for both direct-port and reverse-proxy access.
+    command: ["sleep", "infinity"]
