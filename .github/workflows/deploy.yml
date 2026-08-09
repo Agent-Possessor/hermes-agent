@@ -87,13 +87,6 @@ jobs:
             echo "🧹 4. Stopping the previous Compose deployment and removing orphans..."
             sudo docker compose down --remove-orphans
 
-            if sudo ss -ltn '( sport = :9119 )' | grep -q LISTEN; then
-              echo "❌ Port 9119 is still owned by a process outside this Compose deployment:"
-              sudo ss -ltnp '( sport = :9119 )' || true
-              echo "Stop the reported legacy service/container before redeploying."
-              exit 1
-            fi
-
             echo "🐳 5. Deploying Docker Containers (gateway & dashboard)..."
             HERMES_UID=$(id -u) HERMES_GID=$(id -g) sudo -E docker compose up -d --build --force-recreate --remove-orphans
 
@@ -102,7 +95,7 @@ jobs:
 
             echo "🔐 7. Verifying container roles and runtime credentials..."
             sudo docker exec hermes sh -lc 'test "$HERMES_DASHBOARD" = "0"'
-            sudo docker exec hermes-dashboard sh -lc 'test "$HERMES_DASHBOARD" = "1"'
+            sudo docker exec hermes-dashboard sh -lc 'test "$HERMES_DASHBOARD" = "0"'
             sudo docker exec hermes sh -lc 'test -n "$EXCITECH_GATEWAY_API_KEY"'
             sudo docker exec hermes-dashboard sh -lc 'test -n "$EXCITECH_GATEWAY_API_KEY"'
             sudo docker exec hermes-dashboard sh -lc 'test -n "$HERMES_DASHBOARD_BASIC_AUTH_USERNAME"'

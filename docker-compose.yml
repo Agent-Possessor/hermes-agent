@@ -81,22 +81,19 @@ services:
     environment:
       - HERMES_UID=${HERMES_UID:-10000}
       - HERMES_GID=${HERMES_GID:-10000}
-      # Run the dashboard through the image's built-in s6 service. Do not also
-      # use `command: ["dashboard", ...]`, which would start a second process
-      # competing for the same port.
-      - HERMES_DASHBOARD=1
-      - HERMES_DASHBOARD_HOST=0.0.0.0
-      - HERMES_DASHBOARD_PORT=9119
+      # The Compose command below owns the only dashboard process. Keep the
+      # image's optional parallel s6 dashboard disabled.
+      - HERMES_DASHBOARD=0
       # The dashboard builds the provider/model inventory in its own process,
       # so it needs the same provider credential as the gateway container.
       - EXCITECH_GATEWAY_API_KEY=${EXCITECH_GATEWAY_API_KEY:-}
       - EXCITECH_GATEWAY_API_URL=${EXCITECH_GATEWAY_API_URL:-https://api-ai-kita.excitech.id}
-      # Required for the built-in dashboard login page. The non-loopback bind
-      # below engages Hermes' auth gate; startup fails closed when either
-      # credential is missing.
+      # Required for the built-in dashboard login page. The --require-auth flag
+      # below engages Hermes' auth gate on the loopback reverse-proxy backend;
+      # the deployment workflow fails closed when either credential is missing.
       - HERMES_DASHBOARD_BASIC_AUTH_USERNAME=${HERMES_DASHBOARD_BASIC_AUTH_USERNAME:-}
       - HERMES_DASHBOARD_BASIC_AUTH_PASSWORD=${HERMES_DASHBOARD_BASIC_AUTH_PASSWORD:-}
-    # Keep the container's main process alive while s6 owns and supervises the
-    # single dashboard process configured above. The non-loopback bind engages
-    # Hermes' auth gate for both direct-port and reverse-proxy access.
-    command: ["sleep", "infinity"]
+    # nginx owns the server's LAN/public :9119 listener and proxies to this
+    # loopback socket. --require-auth keeps the Hermes login gate mandatory
+    # without colliding with nginx's bind.
+    command: ["dashboard", "--host", "127.0.0.1", "--require-auth", "--no-open"]
