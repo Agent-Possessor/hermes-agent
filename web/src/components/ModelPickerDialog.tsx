@@ -506,8 +506,8 @@ export function ModelPickerDialog(props: Props) {
                 Excitech Gateway
               </h3>
               <p className="mt-1 text-xs text-muted-foreground">
-                Requests use `/v1/ai/chat`; configure its routing metadata
-                below.
+                Requests use `/v1/agent/chat/completions`; configure its
+                routing metadata below.
               </p>
             </div>
 

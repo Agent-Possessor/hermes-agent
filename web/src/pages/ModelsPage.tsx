@@ -958,7 +958,7 @@ function ModelSettingsPanel({
   const mainProv = aux?.main.provider ?? "";
   const mainModel = aux?.main.model ?? "";
   const showExcitechModeSummary = modelInfo?.provider === "excitech-gateway";
-  const excitechTransportLabel = "/v1/ai/chat";
+  const excitechTransportLabel = "/v1/agent/chat/completions";
 
   useEffect(() => {
     api.getMoaModels().then(setMoa).catch(() => setMoa(null));
