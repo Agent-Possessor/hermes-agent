@@ -38,6 +38,12 @@ services:
     environment:
       - HERMES_UID=${HERMES_UID:-10000}
       - HERMES_GID=${HERMES_GID:-10000}
+      # Excitech Gateway is a centrally managed provider. Pass the credential
+      # into the runtime container instead of asking each dashboard user to
+      # paste it. Production deployment validates this value before startup;
+      # it remains optional here so generic Docker users can use other models.
+      - EXCITECH_GATEWAY_API_KEY=${EXCITECH_GATEWAY_API_KEY:-}
+      - EXCITECH_GATEWAY_API_URL=${EXCITECH_GATEWAY_API_URL:-https://api-ai-kita.excitech.id}
       # To expose the OpenAI-compatible API server beyond localhost,
       # uncomment BOTH lines (API_SERVER_KEY is mandatory for auth):
       # - API_SERVER_HOST=0.0.0.0
@@ -72,5 +78,9 @@ services:
     environment:
       - HERMES_UID=${HERMES_UID:-10000}
       - HERMES_GID=${HERMES_GID:-10000}
+      # The dashboard builds the provider/model inventory in its own process,
+      # so it needs the same provider credential as the gateway container.
+      - EXCITECH_GATEWAY_API_KEY=${EXCITECH_GATEWAY_API_KEY:-}
+      - EXCITECH_GATEWAY_API_URL=${EXCITECH_GATEWAY_API_URL:-https://api-ai-kita.excitech.id}
     # Localhost-only. For remote access, tunnel via `ssh -L 9119:localhost:9119`.
     command: ["dashboard", "--host", "127.0.0.1", "--no-open"]
