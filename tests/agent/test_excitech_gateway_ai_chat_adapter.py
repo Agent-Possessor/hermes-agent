@@ -62,8 +62,7 @@ def test_ai_chat_adapter_maps_payload_and_response_metadata():
     agent_ref = SimpleNamespace(session_id="sess_abc")
     client = ExcitechGatewayAIChatClient(
         api_key="ak_test",
-        # A legacy saved proxy base URL must be migrated to the only supported
-        # endpoint rather than being called as an OpenAI-compatible API.
+        # A legacy saved proxy base URL is migrated to the stateless endpoint.
         base_url="https://api-ai-kita.excitech.id/v1/openai",
         http_client=http_client,
         agent_ref=agent_ref,
@@ -92,19 +91,21 @@ def test_ai_chat_adapter_maps_payload_and_response_metadata():
 
     assert http_client.calls, "adapter should issue one HTTP request"
     request = http_client.calls[0]
-    assert request["url"] == "https://api-ai-kita.excitech.id/v1/ai/chat"
+    assert request["url"] == "https://api-ai-kita.excitech.id/v1/agent/chat/completions"
     assert request["headers"]["X-AI-API-Key"] == "ak_test"
-    assert request["json"]["domain"] == "general"
-    assert request["json"]["agent"] == "analyst"
-    assert request["json"]["session_id"] == "sess_abc"
-    assert request["json"]["options"]["stream"] is False
-    assert request["json"]["options"]["max_tokens"] == 512
-    input_text = request["json"]["input"]["content"]
-    assert input_text.startswith("cek harga BTC hari ini")
-    assert "Hermes instructions and current turn:" in input_text
-    assert "[SYSTEM]\nAnda adalah Hermes." in input_text
-    assert "[USER]\ncek harga BTC hari ini" in input_text
-    assert "Available Hermes tools:" in request["json"]["input"]["content"]
+    assert request["json"]["routing"]["domain"] == "general"
+    assert request["json"]["routing"]["agent"] == "analyst"
+    assert request["json"]["routing"]["original_user_input"] == "cek harga BTC hari ini"
+    assert request["json"]["stream"] is False
+    assert request["json"]["max_tokens"] == 512
+    assert request["json"]["messages"][0] == {
+        "role": "system",
+        "content": "Anda adalah Hermes.",
+        "name": None,
+        "tool_call_id": None,
+        "tool_calls": None,
+    }
+    assert request["json"]["tools"][0]["function"]["name"] == "web_search"
 
     assert response.id == "req_123"
     assert response.model == "stepfun-ai/step-3.5-flash"
@@ -114,7 +115,7 @@ def test_ai_chat_adapter_maps_payload_and_response_metadata():
     assert gateway_meta["quality_tier"] == "standard"
 
 
-def test_ai_chat_adapter_preserves_current_tool_loop_without_replaying_old_turns():
+def test_ai_chat_adapter_preserves_native_full_tool_loop():
     payload = {
         "success": True,
         "data": {"output": {"content": "Tool result accepted."}},
@@ -156,14 +157,83 @@ def test_ai_chat_adapter_preserves_current_tool_loop_without_replaying_old_turns
         ],
     )
 
-    input_text = http_client.calls[0]["json"]["input"]["content"]
-    assert "Follow the Hermes system policy." in input_text
-    assert "inspect the repository" in input_text
-    assert "tool_call_id=call_1" in input_text
-    assert "git status --short" in input_text
-    assert "[TOOL name=terminal tool_call_id=call_1]\nM agent.py" in input_text
-    assert "old question" not in input_text
-    assert "old answer" not in input_text
+    request = http_client.calls[0]
+    assert request["url"] == "https://api-ai-kita.excitech.id/v1/agent/chat/completions"
+    messages = request["json"]["messages"]
+    assert [message["role"] for message in messages] == [
+        "system", "user", "assistant", "user", "assistant", "tool"
+    ]
+    assert messages[-2]["tool_calls"][0]["function"]["name"] == "terminal"
+    assert messages[-1]["tool_call_id"] == "call_1"
+    assert messages[-1]["content"] == " M agent.py"
+    assert request["json"]["routing"]["original_user_input"] == "inspect the repository"
+
+
+def test_ai_chat_adapter_keeps_recovery_in_messages_but_routes_on_original_user():
+    payload = {
+        "id": "req_native",
+        "object": "chat.completion",
+        "model": "fallback-model",
+        "choices": [{
+            "index": 0,
+            "message": {"role": "assistant", "content": "Final answer"},
+            "finish_reason": "stop",
+        }],
+        "gateway": {"provider": "fallback", "fallback_used": True},
+    }
+    http_client = _FakeHTTPClient(payload)
+    client = ExcitechGatewayAIChatClient(
+        api_key="ak_test",
+        base_url="https://api-ai-kita.excitech.id/v1/agent/chat/completions",
+        http_client=http_client,
+    )
+
+    response = client.chat.completions.create(
+        model="general-main",
+        messages=[
+            {"role": "user", "content": "analyze Menu Kita"},
+            {"role": "assistant", "content": None, "tool_calls": []},
+            {"role": "tool", "tool_call_id": "call_1", "content": "evidence"},
+            {
+                "role": "user",
+                "content": "You just executed tool calls but returned an empty response. Please continue.",
+            },
+        ],
+    )
+
+    request = http_client.calls[0]["json"]
+    assert request["routing"]["original_user_input"] == "analyze Menu Kita"
+    assert request["messages"][-1]["content"].startswith("You just executed")
+    assert response.choices[0].message.content == "Final answer"
+    assert response.choices[0].message.model_extra["excitech_gateway"]["fallback_used"] is True
+
+
+def test_ai_chat_adapter_preserves_multimodal_message_parts():
+    http_client = _FakeHTTPClient({
+        "choices": [{
+            "index": 0,
+            "message": {"role": "assistant", "content": "described"},
+            "finish_reason": "stop",
+        }],
+    })
+    client = ExcitechGatewayAIChatClient(
+        api_key="ak_test",
+        base_url="https://api-ai-kita.excitech.id/v1/agent/chat/completions",
+        http_client=http_client,
+    )
+    parts = [
+        {"type": "text", "text": "describe this"},
+        {"type": "image_url", "image_url": {"url": "data:image/png;base64,abc"}},
+    ]
+
+    client.chat.completions.create(
+        model="general-main",
+        messages=[{"role": "user", "content": parts}],
+    )
+
+    request = http_client.calls[0]["json"]
+    assert request["messages"][0]["content"] == parts
+    assert request["routing"]["original_user_input"] == "describe this"
 
 
 def test_ai_chat_adapter_promotes_dsml_markup_into_tool_calls():

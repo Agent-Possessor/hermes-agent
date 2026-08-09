@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-def test_create_openai_client_always_uses_ai_chat_for_excitech_gateway(monkeypatch):
+def test_create_openai_client_uses_agent_completion_for_excitech_gateway(monkeypatch):
     captured = {}
 
     class FakeAIChatClient:
@@ -19,7 +19,7 @@ def test_create_openai_client_always_uses_ai_chat_for_excitech_gateway(monkeypat
     agent = AIAgent.__new__(AIAgent)
     agent.provider = "excitech-gateway"
     agent.model = "general-main"
-    agent.base_url = "https://api-ai-kita.excitech.id/v1/ai/chat"
+    agent.base_url = "https://api-ai-kita.excitech.id/v1/agent/chat/completions"
     agent.session_id = "sess_001"
     agent._client_kwargs = {}
     agent._build_keepalive_http_client = lambda *_args, **_kwargs: None
@@ -27,7 +27,7 @@ def test_create_openai_client_always_uses_ai_chat_for_excitech_gateway(monkeypat
 
     client_kwargs = {
         "api_key": "ak_test",
-        "base_url": "https://api-ai-kita.excitech.id/v1/ai/chat",
+        "base_url": "https://api-ai-kita.excitech.id/v1/agent/chat/completions",
     }
     client = agent._create_openai_client(client_kwargs, reason="test", shared=False)
 
@@ -35,4 +35,4 @@ def test_create_openai_client_always_uses_ai_chat_for_excitech_gateway(monkeypat
     assert captured["kwargs"]["gateway_domain"] == "general"
     assert captured["kwargs"]["gateway_agent"] == "assistant"
     assert captured["kwargs"]["agent_ref"] is agent
-    assert captured["kwargs"]["base_url"] == "https://api-ai-kita.excitech.id/v1/ai/chat"
+    assert captured["kwargs"]["base_url"] == "https://api-ai-kita.excitech.id/v1/agent/chat/completions"

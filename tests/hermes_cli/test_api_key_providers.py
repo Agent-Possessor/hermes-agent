@@ -1232,5 +1232,5 @@ class TestExcitechGatewayProviderProfile:
         assert resolved is not None
         assert resolved.id == "excitech-gateway"
         assert resolved.transport == "openai_chat"
-        assert resolved.base_url.endswith("/v1/ai/chat")
+        assert resolved.base_url.endswith("/v1/agent/chat/completions")
         assert "EXCITECH_GATEWAY_API_KEY" in resolved.api_key_env_vars
