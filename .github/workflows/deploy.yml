@@ -1,0 +1,65 @@
+name: Auto Deploy Hermes Agent
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy to Production Server
+    runs-on: ubuntu-latest
+    steps:
+      - name: Execute Deployment via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SERVER_PORT || '22' }}
+          script: |
+            set -e
+            echo "🚀 Starting Hermes Agent Auto-Deployment..."
+
+            PROJECT_DIR="/home/ubuntu/app/hermes-agent"
+            if [ -d "$PROJECT_DIR" ]; then
+              cd "$PROJECT_DIR"
+            else
+              echo "⚠️ Directory $PROJECT_DIR not found, using current directory..."
+            fi
+
+            echo "📦 1. Stashing local custom changes..."
+            git stash save "Auto-stash before deployment $(date +'%Y-%m-%d %H:%M:%S')" || true
+
+            echo "🔄 2. Fetching & Pulling latest code from main branch..."
+            git fetch origin main
+            git merge origin/main --no-edit || git rebase origin/main
+
+            echo "🧩 3. Restoring local custom changes..."
+            git stash pop || true
+
+            echo "🐍 4. Syncing Python dependencies (preserving .env and ~/.hermes)..."
+            if [ -f "setup-hermes.sh" ]; then
+              chmod +x setup-hermes.sh
+            fi
+
+            if command -v uv >/dev/null 2>&1; then
+              uv sync --extra all || ./setup-hermes.sh --no-interactive || true
+            else
+              ./setup-hermes.sh --no-interactive || true
+            fi
+
+            echo "⚡ 5. Gracefully restarting Hermes Gateway (Telegram, WAHA, etc.)..."
+            HERMES_BIN="$HOME/.local/bin/hermes"
+            if [ -x "$HERMES_BIN" ]; then
+              "$HERMES_BIN" gateway restart || true
+            elif command -v hermes >/dev/null 2>&1; then
+              hermes gateway restart || true
+            elif command -v systemctl >/dev/null 2>&1 && systemctl --user is-active --quiet hermes-gateway; then
+              systemctl --user restart hermes-gateway || true
+            elif command -v docker >/dev/null 2>&1 && [ -f "docker-compose.yml" ]; then
+              docker compose restart || true
+            fi
+
+            echo "✅ Deployment complete! Hermes Agent updated safely."
