@@ -82,5 +82,12 @@ services:
       # so it needs the same provider credential as the gateway container.
       - EXCITECH_GATEWAY_API_KEY=${EXCITECH_GATEWAY_API_KEY:-}
       - EXCITECH_GATEWAY_API_URL=${EXCITECH_GATEWAY_API_URL:-https://api-ai-kita.excitech.id}
-    # Localhost-only. For remote access, tunnel via `ssh -L 9119:localhost:9119`.
-    command: ["dashboard", "--host", "127.0.0.1", "--no-open"]
+      # Required for the built-in dashboard login page. The non-loopback bind
+      # below engages Hermes' auth gate; startup fails closed when either
+      # credential is missing.
+      - HERMES_DASHBOARD_BASIC_AUTH_USERNAME=${HERMES_DASHBOARD_BASIC_AUTH_USERNAME:-}
+      - HERMES_DASHBOARD_BASIC_AUTH_PASSWORD=${HERMES_DASHBOARD_BASIC_AUTH_PASSWORD:-}
+    # A non-loopback bind is required to engage Hermes' dashboard auth gate.
+    # Keep port 9119 blocked from the public internet and expose it only through
+    # the TLS reverse proxy.
+    command: ["dashboard", "--host", "0.0.0.0", "--no-open"]
