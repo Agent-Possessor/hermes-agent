@@ -22,6 +22,37 @@ import httpx
 logger = logging.getLogger(__name__)
 
 
+class ExcitechGatewayError(RuntimeError):
+    """HTTP-aware gateway failure that keeps safe provider-attempt details."""
+
+    def __init__(self, message: str, *, status_code: int, body: Any, response: Any) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+        self.body = {"message": message, "gateway": body}
+        self.response = response
+
+
+def _gateway_error_message(body: Any) -> str:
+    if not isinstance(body, dict):
+        return "Excitech gateway request failed"
+    message = str(body.get("message") or "Excitech gateway request failed").strip()
+    error = body.get("error") if isinstance(body.get("error"), dict) else {}
+    details = error.get("details") if isinstance(error.get("details"), dict) else {}
+    attempts = details.get("attempts") if isinstance(details.get("attempts"), list) else []
+    summaries: list[str] = []
+    for attempt in attempts[:6]:
+        if not isinstance(attempt, dict):
+            continue
+        provider = str(attempt.get("provider") or "unknown-provider").strip()
+        model = str(attempt.get("model") or "unknown-model").strip()
+        reason = " ".join(str(attempt.get("error") or "failed").split())
+        summaries.append(f"{provider}/{model}: {reason[:180]}")
+    if summaries:
+        return f"{message} after {len(attempts)} candidate(s): " + "; ".join(summaries)
+    reason = " ".join(str(details.get("reason") or "").split())
+    return f"{message}: {reason[:300]}" if reason else message
+
+
 _DSML_TAG_STEM = r"(?:[|｜]\s*){2}DSML(?:\s*[|｜]){2}"
 _DSML_TOOL_CALLS_RE = re.compile(
     rf"<\s*{_DSML_TAG_STEM}\s*tool_calls\s*>(.*?)</\s*{_DSML_TAG_STEM}\s*tool_calls\s*>",
@@ -514,15 +545,27 @@ class ExcitechGatewayAIChatClient:
     def _post_chat(self, payload: dict[str, Any], *, fallback_model: str) -> SimpleNamespace:
         url = _resolve_endpoint(self.base_url)
         resp = self._http_client.post(url, headers=self._headers(), json=payload, timeout=self.timeout)
-        resp.raise_for_status()
         try:
             body = resp.json()
         except json.JSONDecodeError as exc:
+            resp.raise_for_status()
             logger.warning("excitech-gateway ai-chat returned non-JSON response: %s", exc)
             raise RuntimeError(f"Excitech gateway ai-chat returned invalid JSON: {exc}") from exc
+        status_code = int(getattr(resp, "status_code", 200) or 200)
+        if status_code >= 400:
+            raise ExcitechGatewayError(
+                _gateway_error_message(body),
+                status_code=status_code,
+                body=body,
+                response=resp,
+            )
         if isinstance(body, dict) and body.get("success") is False:
-            message = str(body.get("message") or "Excitech gateway ai-chat failed")
-            raise RuntimeError(message)
+            raise ExcitechGatewayError(
+                _gateway_error_message(body),
+                status_code=status_code,
+                body=body,
+                response=resp,
+            )
         return _normalize_chat_response(body if isinstance(body, dict) else {}, fallback_model=fallback_model)
 
     def _stream_from_response(self, response: SimpleNamespace) -> Iterable[SimpleNamespace]:
