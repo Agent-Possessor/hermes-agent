@@ -1,8 +1,8 @@
-"""OpenAI-shaped adapter for Excitech AI Gateway `/v1/ai/chat`.
+"""OpenAI-shaped adapter for Excitech AI Gateway agent completions.
 
 Hermes keeps its own main loop (prompting, tool handling, retries, session
-state), while this adapter lets the transport hop to Excitech's orchestration
-endpoint and normalize the reply back into a chat-completions-like shape.
+state), while this adapter delegates stateless model routing and fallback to
+Excitech and normalizes the reply back into a chat-completions-like shape.
 """
 
 from __future__ import annotations
@@ -149,16 +149,52 @@ def _normalize_messages(messages: Any) -> list[dict[str, Any]]:
         if not isinstance(message, dict):
             continue
         role = str(message.get("role") or "user").strip() or "user"
+        raw_content = message.get("content")
+        content = (
+            _json_safe(raw_content)
+            if isinstance(raw_content, (list, dict))
+            else _coerce_text_content(raw_content)
+        )
         normalized.append(
             {
                 "role": role,
-                "content": _coerce_text_content(message.get("content")),
+                "content": content,
                 "name": message.get("name"),
                 "tool_call_id": message.get("tool_call_id"),
                 "tool_calls": _json_safe(message.get("tool_calls")),
             }
         )
     return normalized
+
+
+_EMPTY_TOOL_RECOVERY_PREFIX = "you just executed tool calls but returned an empty response"
+
+
+def _original_user_input(messages: list[dict[str, Any]]) -> str:
+    """Return the latest real user input for gateway routing.
+
+    Hermes may append a synthetic user nudge after an empty post-tool reply.
+    That nudge remains in messages for model continuity but must not become the
+    gateway's routing/search intent.
+    """
+    for message in reversed(messages):
+        if message.get("role") != "user":
+            continue
+        raw_content = message.get("content")
+        if isinstance(raw_content, list):
+            content = "\n".join(
+                str(part.get("text") or "").strip()
+                for part in raw_content
+                if isinstance(part, dict) and part.get("type") in {"text", "input_text"}
+            ).strip()
+        else:
+            content = str(raw_content or "").strip()
+        if not content:
+            continue
+        if content.lower().startswith(_EMPTY_TOOL_RECOVERY_PREFIX):
+            continue
+        return content
+    return ""
 
 
 def _normalize_usage(usage: Any) -> Optional[SimpleNamespace]:
@@ -174,111 +210,6 @@ def _normalize_usage(usage: Any) -> Optional[SimpleNamespace]:
     )
 
 
-def _render_tool_hints(tools: Any) -> str:
-    if not isinstance(tools, list) or not tools:
-        return ""
-
-    serialized = []
-    for tool in tools:
-        if not isinstance(tool, dict):
-            continue
-        serialized.append(
-            {
-                "type": tool.get("type"),
-                "function": tool.get("function"),
-            }
-        )
-    if not serialized:
-        return ""
-
-    return (
-        "Available Hermes tools:\n"
-        f"{json.dumps(serialized, ensure_ascii=False, indent=2)}\n\n"
-        "If you need a tool, emit DSML tool markup that Hermes can parse.\n"
-        "Format example:\n"
-        "<||DSML||tool_calls>\n"
-        "<||DSML||invoke name=\"tool_name\">\n"
-        "<||DSML||parameter name=\"arg\" string=\"true\">value</||DSML||parameter>\n"
-        "</||DSML||invoke>\n"
-        "</||DSML||tool_calls>"
-    )
-
-
-def _render_gateway_tool_guidance() -> str:
-    return (
-        "Excitech Gateway tool guidance:\n"
-        "- Use news.search for fresh headlines, company news, earnings, market-moving stories, or other news-specific requests.\n"
-        "- Use websearch.search for broader public web evidence, verification, or current facts outside news.\n"
-        "- Keep tool arguments minimal and only call a tool when external evidence is needed.\n"
-        "- If the answer is self-contained, respond directly without tools."
-    )
-
-
-def _render_transcript(messages: list[dict[str, Any]]) -> str:
-    lines: list[str] = []
-    for message in messages:
-        role = str(message.get("role") or "user").strip().upper()
-        content = str(message.get("content") or "").strip()
-        name = str(message.get("name") or "").strip()
-        tool_call_id = str(message.get("tool_call_id") or "").strip()
-        header_parts = [role]
-        if name:
-            header_parts.append(f"name={name}")
-        if tool_call_id:
-            header_parts.append(f"tool_call_id={tool_call_id}")
-        lines.append(f"[{' '.join(header_parts)}]")
-        if content:
-            lines.append(content)
-        tool_calls = message.get("tool_calls")
-        if isinstance(tool_calls, list) and tool_calls:
-            lines.append("tool_calls:")
-            lines.append(json.dumps(tool_calls, ensure_ascii=False, indent=2))
-        lines.append("")
-    return "\n".join(lines).strip()
-
-
-def _build_input_text(messages: list[dict[str, Any]], tools: Any) -> str:
-    sections: list[str] = []
-    instruction_messages = [
-        message
-        for message in messages
-        if message.get("role") in {"system", "developer"}
-    ]
-    latest_user_index = next(
-        (
-            index
-            for index in range(len(messages) - 1, -1, -1)
-            if messages[index].get("role") == "user"
-        ),
-        0,
-    )
-    current_turn = [
-        message
-        for message in messages[latest_user_index:]
-        if message.get("role") not in {"system", "developer"}
-    ]
-    latest_user_text = ""
-    if 0 <= latest_user_index < len(messages):
-        latest_user_text = str(messages[latest_user_index].get("content") or "").strip()
-    if latest_user_text:
-        sections.append(latest_user_text)
-
-    transcript_messages = [*instruction_messages, *current_turn]
-    transcript = _render_transcript(transcript_messages)
-    if transcript:
-        sections.append(
-            "Hermes instructions and current turn:\n"
-            f"{transcript}\n\n"
-            "Continue from the final message above. Preserve the stated roles; "
-            "a TOOL message is the result of the preceding assistant tool call."
-        )
-    tool_hints = _render_tool_hints(tools)
-    if tool_hints:
-        sections.append(tool_hints)
-    sections.append(_render_gateway_tool_guidance())
-    return "\n\n".join(section for section in sections if section).strip()
-
-
 def _resolve_endpoint(base_url: str) -> str:
     base = str(base_url or "").rstrip("/")
     if not base:
@@ -286,15 +217,16 @@ def _resolve_endpoint(base_url: str) -> str:
             "EXCITECH_GATEWAY_API_URL", "https://api-ai-kita.excitech.id"
         ).strip().rstrip("/")
 
-    if base.endswith("/v1/ai/chat"):
+    if base.endswith("/v1/agent/chat/completions"):
         return base
-    # Migrate base URLs saved by older Hermes releases. This only rewrites the
-    # address; requests still go exclusively to the orchestration endpoint.
+    # Migrate saved orchestration/proxy URLs to the stateless agent endpoint.
+    if base.endswith("/v1/ai/chat"):
+        return f"{base[:-len('/ai/chat')]}/agent/chat/completions"
     if base.endswith("/v1/openai"):
-        return f"{base[:-len('/openai')]}/ai/chat"
+        return f"{base[:-len('/openai')]}/agent/chat/completions"
     if base.endswith("/v1"):
-        return f"{base}/ai/chat"
-    return f"{base}/v1/ai/chat"
+        return f"{base}/agent/chat/completions"
+    return f"{base}/v1/agent/chat/completions"
 
 
 def _default_gateway_agent(model: str, configured_agent: str) -> str:
@@ -326,6 +258,57 @@ def _normalize_provider_policy(value: Any) -> Optional[dict[str, Any]]:
 
 
 def _normalize_chat_response(payload: dict[str, Any], *, fallback_model: str) -> SimpleNamespace:
+    # The stateless agent endpoint is OpenAI-compatible. Keep the legacy
+    # /v1/ai/chat envelope parser below for rolling upgrades and old fixtures.
+    if isinstance(payload.get("choices"), list):
+        raw_choices = payload.get("choices") or []
+        normalized_choices = []
+        for index, raw_choice in enumerate(raw_choices):
+            if not isinstance(raw_choice, dict):
+                continue
+            raw_message = raw_choice.get("message") if isinstance(raw_choice.get("message"), dict) else {}
+            parsed_tool_calls = []
+            for raw_call in raw_message.get("tool_calls") or []:
+                if not isinstance(raw_call, dict):
+                    continue
+                raw_function = raw_call.get("function") if isinstance(raw_call.get("function"), dict) else {}
+                parsed_tool_calls.append(
+                    SimpleNamespace(
+                        id=str(raw_call.get("id") or ""),
+                        call_id=str(raw_call.get("id") or ""),
+                        response_item_id=None,
+                        type=str(raw_call.get("type") or "function"),
+                        extra_content=None,
+                        function=SimpleNamespace(
+                            name=str(raw_function.get("name") or ""),
+                            arguments=str(raw_function.get("arguments") or "{}"),
+                        ),
+                    )
+                )
+            normalized_choices.append(
+                SimpleNamespace(
+                    index=int(raw_choice.get("index", index)),
+                    message=SimpleNamespace(
+                        role=str(raw_message.get("role") or "assistant"),
+                        content=raw_message.get("content"),
+                        tool_calls=parsed_tool_calls or None,
+                        refusal=raw_message.get("refusal"),
+                        reasoning=raw_message.get("reasoning"),
+                        reasoning_content=raw_message.get("reasoning_content"),
+                        model_extra={"excitech_gateway": payload.get("gateway") or {}},
+                    ),
+                    finish_reason=raw_choice.get("finish_reason") or ("tool_calls" if parsed_tool_calls else "stop"),
+                )
+            )
+        return SimpleNamespace(
+            id=str(payload.get("id") or f"agent_gateway_{int(time.time() * 1000)}"),
+            object=str(payload.get("object") or "chat.completion"),
+            created=int(payload.get("created") or time.time()),
+            model=str(payload.get("model") or fallback_model),
+            choices=normalized_choices,
+            usage=_normalize_usage(payload.get("usage")),
+        )
+
     envelope = payload.get("data") if isinstance(payload.get("data"), dict) else payload
     if not isinstance(envelope, dict):
         envelope = {}
@@ -448,7 +431,7 @@ class _AsyncExcitechGatewayAIChatNamespace:
 
 
 class ExcitechGatewayAIChatClient:
-    """OpenAI-client-compatible facade backed by `/v1/ai/chat`."""
+    """OpenAI-client-compatible facade backed by agent completions."""
 
     def __init__(
         self,
@@ -490,30 +473,34 @@ class ExcitechGatewayAIChatClient:
         extra_body = kwargs.get("extra_body") if isinstance(kwargs.get("extra_body"), dict) else {}
         model_name = str(kwargs.get("model") or "")
         payload: dict[str, Any] = {
-            "domain": str(extra_body.get("domain") or extra_body.get("excitech_gateway_domain") or self.gateway_domain or "general"),
-            "agent": str(extra_body.get("agent") or extra_body.get("excitech_gateway_agent") or _default_gateway_agent(model_name, self.gateway_agent)),
-            "session_id": str(
-                extra_body.get("session_id")
-                or getattr(self.agent_ref, "session_id", "")
-                or f"hermes-{int(time.time())}"
-            ),
-            "input": {
-                "type": "text",
-                "content": _build_input_text(normalized_messages, kwargs.get("tools")),
-            },
-            "options": {
-                "stream": False,
+            "model": model_name or "auto",
+            "messages": normalized_messages,
+            "stream": False,
+            "routing": {
+                "domain": str(extra_body.get("domain") or extra_body.get("excitech_gateway_domain") or self.gateway_domain or "general"),
+                "agent": str(extra_body.get("agent") or extra_body.get("excitech_gateway_agent") or _default_gateway_agent(model_name, self.gateway_agent)),
+                "original_user_input": _original_user_input(normalized_messages),
             },
         }
 
+        tools = _json_safe(kwargs.get("tools"))
+        if isinstance(tools, list) and tools:
+            payload["tools"] = tools
+        if kwargs.get("tool_choice") is not None:
+            payload["tool_choice"] = _json_safe(kwargs.get("tool_choice"))
+        if kwargs.get("parallel_tool_calls") is not None:
+            payload["parallel_tool_calls"] = bool(kwargs.get("parallel_tool_calls"))
+        if isinstance(kwargs.get("response_format"), dict):
+            payload["response_format"] = _json_safe(kwargs.get("response_format"))
+
         temperature = kwargs.get("temperature")
         if temperature is not None:
-            payload["options"]["temperature"] = temperature
+            payload["temperature"] = temperature
         max_tokens = kwargs.get("max_tokens")
         if max_tokens is None:
             max_tokens = kwargs.get("max_completion_tokens")
         if max_tokens is not None:
-            payload["options"]["max_tokens"] = max_tokens
+            payload["max_tokens"] = max_tokens
 
         provider_policy = (
             _normalize_provider_policy(extra_body.get("provider_policy"))
