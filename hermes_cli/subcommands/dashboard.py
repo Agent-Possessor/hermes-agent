@@ -40,6 +40,15 @@ def _add_server_runtime_args(parser) -> None:
         ),
     )
     parser.add_argument(
+        "--require-auth",
+        action="store_true",
+        help=(
+            "Require a configured dashboard authentication provider even when "
+            "binding to loopback. Use this when a local reverse proxy owns the "
+            "public listener and forwards to 127.0.0.1."
+        ),
+    )
+    parser.add_argument(
         "--skip-build",
         action="store_true",
         help=(

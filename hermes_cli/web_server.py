@@ -17687,6 +17687,7 @@ def start_server(
     port: int = 9119,
     open_browser: bool = True,
     allow_public: bool = False,
+    force_auth: bool = False,
     initial_profile: str = "",
     headless: bool = False,
     ssh_session_token: Optional[str] = None,
@@ -17702,6 +17703,10 @@ def start_server(
     ``headless`` is the ``serve`` path: the JSON-RPC/WS backend with no UI
     build and no SPA mount (mount_spa() honours ``HERMES_SERVE_HEADLESS``), so
     the banner announces the bind rather than a browser URL.
+
+    ``force_auth`` engages the provider/cookie gate even on a loopback bind.
+    This is for reverse-proxy topologies where nginx owns the reachable socket
+    and forwards requests to a localhost-only Hermes backend.
 
     ``ssh_session_token`` and ``ssh_owner_nonce`` are process-local Desktop SSH
     bootstrap state. Neither is persisted or exported to child processes.
@@ -17722,7 +17727,11 @@ def start_server(
     # injection / WS-auth paths can branch on it consistently.  Phase 3.5
     # uses this to decide whether to refuse the bind, log the gate-on
     # banner, and enable uvicorn proxy_headers.
-    app.state.auth_required = should_require_auth(host)
+    # Reverse-proxy deployments commonly keep the backend on 127.0.0.1 while
+    # nginx owns the public/LAN listener. ``force_auth`` lets that topology use
+    # the same cookie/provider gate as a direct non-loopback bind, without
+    # widening the backend socket or colliding with the proxy's port.
+    app.state.auth_required = bool(force_auth) or should_require_auth(host)
 
     # ``--insecure`` no longer disables the auth gate (June 2026 hardening:
     # the hermes-0day MCP-persistence campaign abused unauthenticated public
@@ -17855,7 +17864,10 @@ def start_server(
     # (idle timeout ~100s) where half-open IS a real failure mode, so keep the
     # ping at 20/20 to detect it promptly and stay under the tunnel's idle
     # window.
-    _is_loopback = host in ("127.0.0.1", "localhost", "::1")
+    _is_loopback = (
+        host in ("127.0.0.1", "localhost", "::1")
+        and not app.state.auth_required
+    )
     config = uvicorn.Config(
         app, host=host, port=port, log_level="warning",
         # proxy_headers defaults to False so _ws_client_is_allowed sees
