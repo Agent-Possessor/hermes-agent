@@ -84,19 +84,29 @@ jobs:
               exit 1
             fi
 
-            echo "🐳 4. Deploying Docker Containers (gateway & dashboard)..."
-            HERMES_UID=$(id -u) HERMES_GID=$(id -g) sudo -E docker compose up -d --build --force-recreate
+            echo "🧹 4. Stopping the previous Compose deployment and removing orphans..."
+            sudo docker compose down --remove-orphans
 
-            echo "📊 5. Checking active Docker containers..."
+            if sudo ss -ltn '( sport = :9119 )' | grep -q LISTEN; then
+              echo "❌ Port 9119 is still owned by a process outside this Compose deployment:"
+              sudo ss -ltnp '( sport = :9119 )' || true
+              echo "Stop the reported legacy service/container before redeploying."
+              exit 1
+            fi
+
+            echo "🐳 5. Deploying Docker Containers (gateway & dashboard)..."
+            HERMES_UID=$(id -u) HERMES_GID=$(id -g) sudo -E docker compose up -d --build --force-recreate --remove-orphans
+
+            echo "📊 6. Checking active Docker containers..."
             sudo docker ps | grep -i hermes || true
 
-            echo "🔐 6. Verifying runtime credentials reached the containers..."
+            echo "🔐 7. Verifying runtime credentials reached the containers..."
             sudo docker exec hermes sh -lc 'test -n "$EXCITECH_GATEWAY_API_KEY"'
             sudo docker exec hermes-dashboard sh -lc 'test -n "$EXCITECH_GATEWAY_API_KEY"'
             sudo docker exec hermes-dashboard sh -lc 'test -n "$HERMES_DASHBOARD_BASIC_AUTH_USERNAME"'
             sudo docker exec hermes-dashboard sh -lc 'test -n "$HERMES_DASHBOARD_BASIC_AUTH_PASSWORD"'
 
-            echo "🩺 7. Waiting for the password-gated dashboard..."
+            echo "🩺 8. Waiting for the password-gated dashboard..."
             DASHBOARD_READY=0
             for attempt in $(seq 1 30); do
               DASHBOARD_STATUS=$(sudo docker exec hermes-dashboard sh -lc \
