@@ -43,6 +43,12 @@ def test_serve_supports_the_lifecycle_flags():
         assert getattr(_parser().parse_args(["serve", flag]), flag.lstrip("-")) is True
 
 
+def test_dashboard_and_serve_support_require_auth():
+    for command in ("dashboard", "serve"):
+        args = _parser().parse_args([command, "--require-auth"])
+        assert args.require_auth is True
+
+
 def test_serve_is_a_headless_backend_but_dashboard_is_not():
     # `headless_backend` is the flag cmd_dashboard reads to skip the web UI
     # build; only `serve` carries it.

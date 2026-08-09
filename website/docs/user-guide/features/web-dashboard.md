@@ -571,9 +571,10 @@ Operator-owned dashboards bound to loopback are unaffected — no auth, no login
 | Flags | Auth gate | Use case |
 |-------|-----------|----------|
 | `hermes dashboard` (default — binds to `127.0.0.1`) | OFF | Local development |
+| `hermes dashboard --host 127.0.0.1 --require-auth` | **ON** | Local backend behind an nginx/Caddy reverse proxy |
 | `hermes dashboard --host 0.0.0.0` | **ON** | Remote / production — protect with the username/password provider or OAuth |
 
-The gate is on if and only if the bind host is not `127.0.0.1`, `::1`, or `localhost`. Binding to `0.0.0.0` (or any RFC1918 / LAN address) engages the gate. The legacy `--insecure` flag **no longer disables it** — it's accepted for backward compatibility but ignored, with a warning.
+The gate is on when the bind host is not `127.0.0.1`, `::1`, or `localhost`, or when `--require-auth` is supplied explicitly. The latter is intended for reverse-proxy topologies where nginx/Caddy owns the reachable address and forwards to a loopback-only Hermes backend. Binding to `0.0.0.0` (or any RFC1918 / LAN address) also engages the gate. The legacy `--insecure` flag **no longer disables it** — it's accepted for backward compatibility but ignored, with a warning.
 
 :::danger `--insecure` is a no-op — it does not disable auth
 Since the June 2026 hardening, `--insecure` no longer bypasses dashboard authentication: a non-loopback bind always requires an auth provider (the username/password provider or OAuth). If you want an auth-free dashboard, bind to `127.0.0.1` and reach it over an SSH tunnel or Tailscale.

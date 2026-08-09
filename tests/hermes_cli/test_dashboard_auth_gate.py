@@ -134,6 +134,46 @@ def test_start_server_loopback_sets_auth_required_false(monkeypatch):
     assert web_server.app.state.auth_required is False
 
 
+def test_start_server_loopback_can_force_auth_for_reverse_proxy(monkeypatch):
+    """A loopback backend behind nginx can explicitly engage the auth gate."""
+    from hermes_cli.dashboard_auth import clear_providers, register_provider
+    from tests.hermes_cli.conftest_dashboard_auth import StubAuthProvider
+
+    clear_providers()
+    register_provider(StubAuthProvider())
+    captured = _stub_uvicorn_run(monkeypatch)
+    try:
+        web_server.app.state.auth_required = None
+        web_server.start_server(
+            host="127.0.0.1",
+            port=9119,
+            open_browser=False,
+            force_auth=True,
+        )
+        assert web_server.app.state.auth_required is True
+        assert captured["kwargs"].get("host") == "127.0.0.1"
+        assert captured["kwargs"].get("proxy_headers") is True
+        assert captured["kwargs"].get("ws_ping_interval") == 20.0
+    finally:
+        clear_providers()
+
+
+def test_start_server_forced_loopback_auth_fails_closed_without_provider(monkeypatch):
+    """Forced auth must never fall back to an open loopback dashboard."""
+    from hermes_cli.dashboard_auth import clear_providers
+
+    clear_providers()
+    _stub_uvicorn_run(monkeypatch)
+    with pytest.raises(SystemExit):
+        web_server.start_server(
+            host="127.0.0.1",
+            port=9119,
+            open_browser=False,
+            force_auth=True,
+        )
+    assert web_server.app.state.auth_required is True
+
+
 def test_start_server_insecure_public_no_longer_bypasses_gate(monkeypatch):
     """``--insecure`` (allow_public=True) on a public host: gate now ENGAGES.
 
@@ -201,5 +241,3 @@ def test_start_server_gate_with_provider_proceeds_and_sets_proxy_headers(monkeyp
         assert captured["kwargs"].get("proxy_headers") is True
     finally:
         clear_providers()
-
-
