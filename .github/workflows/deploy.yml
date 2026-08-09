@@ -13,12 +13,16 @@ jobs:
     steps:
       - name: Execute Docker Deployment via SSH
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          EXCITECH_GATEWAY_API_KEY: ${{ secrets.EXCITECH_GATEWAY_API_KEY }}
+          EXCITECH_GATEWAY_API_URL: ${{ secrets.EXCITECH_GATEWAY_API_URL }}
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SERVER_PORT || '22' }}
           command_timeout: 15m
+          envs: EXCITECH_GATEWAY_API_KEY,EXCITECH_GATEWAY_API_URL
           script: |
             set -e
             echo "🚀 Starting Hermes Agent Auto-Deployment (Docker Mode)..."
@@ -40,10 +44,34 @@ jobs:
             echo "🧩 3. Restoring local custom changes..."
             git stash pop || true
 
+            # Prefer GitHub Actions secrets. When they are not configured,
+            # unset the empty forwarded values so Docker Compose can fall back
+            # to PROJECT_DIR/.env on deployments that manage secrets on-host.
+            if [ -z "${EXCITECH_GATEWAY_API_KEY:-}" ]; then
+              unset EXCITECH_GATEWAY_API_KEY
+            fi
+            if [ -z "${EXCITECH_GATEWAY_API_URL:-}" ]; then
+              unset EXCITECH_GATEWAY_API_URL
+            fi
+
+            # docker compose also reads PROJECT_DIR/.env. Do not print or
+            # source that file: it may contain unrelated production secrets.
+            # This check only confirms that one of the two supported secret
+            # sources contains a non-empty Excitech key.
+            if [ -z "${EXCITECH_GATEWAY_API_KEY:-}" ] && \
+               ! grep -Eq '^EXCITECH_GATEWAY_API_KEY=.+$' .env 2>/dev/null; then
+              echo "❌ Missing EXCITECH_GATEWAY_API_KEY. Configure the GitHub Actions secret or PROJECT_DIR/.env on the VPS."
+              exit 1
+            fi
+
             echo "🐳 4. Deploying Docker Containers (gateway & dashboard)..."
             HERMES_UID=$(id -u) HERMES_GID=$(id -g) sudo -E docker compose up -d --build
 
             echo "📊 5. Checking active Docker containers..."
             sudo docker ps | grep -i hermes || true
+
+            echo "🔐 6. Verifying Excitech credentials reached both containers..."
+            sudo docker exec hermes sh -lc 'test -n "$EXCITECH_GATEWAY_API_KEY"'
+            sudo docker exec hermes-dashboard sh -lc 'test -n "$EXCITECH_GATEWAY_API_KEY"'
 
             echo "✅ Deployment complete! Hermes Agent running safely in Docker."
