@@ -4,8 +4,9 @@ Routes all LLM calls through the internal Excitech AI Gateway
 (https://api-ai-kita.excitech.id/) which handles provider routing,
 fallback logic, and quota enforcement internally.
 
-The gateway is called through its orchestrated AI chat endpoint at
-``/v1/ai/chat``.
+The gateway is called through its stateless agent completion endpoint at
+``/v1/agent/chat/completions``. Hermes owns memory and tool execution; the
+gateway owns model routing and provider fallback.
 
 Auth uses X-AI-API-Key header — injected automatically via default_headers
 so hermes does not need any special transport configuration.
@@ -19,7 +20,7 @@ NVIDIA NIM, etc.) based on the model alias:
 Auth env var:
     EXCITECH_GATEWAY_API_KEY=ak_...
 
-Base URL override (optional, gateway root only — /v1/ai/chat is appended in code):
+Base URL override (optional, gateway root only — the agent path is appended in code):
     EXCITECH_GATEWAY_API_URL=https://api-ai-kita.excitech.id
 
 Config (in ~/.hermes/config.yaml):
@@ -45,11 +46,11 @@ def _gateway_root() -> str:
 
 
 def _gateway_base_url() -> str:
-    return f"{_gateway_root()}/v1/ai/chat"
+    return f"{_gateway_root()}/v1/agent/chat/completions"
 
 
 class ExcitechGatewayProfile(ProviderProfile):
-    """Provider profile for the Excitech orchestration endpoint."""
+    """Provider profile for the Excitech stateless agent endpoint."""
 
     # Override as a property so the env var is read at request time, not at
     # module load time (which may precede .env loading).
@@ -82,7 +83,7 @@ excitech_gateway = ExcitechGatewayProfile(
     aliases=("excitech", "ai-kita", "ai_gateway"),
     env_vars=("EXCITECH_GATEWAY_API_KEY",),
     display_name="Excitech AI Gateway",
-    description="Internal AI chat orchestration with automatic routing",
+    description="Stateless agent completions with automatic routing and fallback",
     signup_url=f"{_gateway_root()}/",
     base_url=_gateway_base_url(),
     supports_health_check=False,
