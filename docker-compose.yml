@@ -47,6 +47,11 @@ services:
       # it remains optional here so generic Docker users can use other models.
       - EXCITECH_GATEWAY_API_KEY=${EXCITECH_GATEWAY_API_KEY:-}
       - EXCITECH_GATEWAY_API_URL=${EXCITECH_GATEWAY_API_URL:-https://api-ai-kita.excitech.id}
+      # Repliz integration keys
+      - REPLIZ_ACCESS_KEY=${REPLIZ_ACCESS_KEY:-}
+      - REPLIZ_SECRET_KEY=${REPLIZ_SECRET_KEY:-}
+      - REPLIZ_BASE_URL=${REPLIZ_BASE_URL:-}
+      - REPLIZ_APPROVAL_SIGNING_KEY=${REPLIZ_APPROVAL_SIGNING_KEY:-}
       # To expose the OpenAI-compatible API server beyond localhost,
       # uncomment BOTH lines (API_SERVER_KEY is mandatory for auth):
       # - API_SERVER_HOST=0.0.0.0
@@ -88,6 +93,11 @@ services:
       # so it needs the same provider credential as the gateway container.
       - EXCITECH_GATEWAY_API_KEY=${EXCITECH_GATEWAY_API_KEY:-}
       - EXCITECH_GATEWAY_API_URL=${EXCITECH_GATEWAY_API_URL:-https://api-ai-kita.excitech.id}
+      # Repliz integration keys
+      - REPLIZ_ACCESS_KEY=${REPLIZ_ACCESS_KEY:-}
+      - REPLIZ_SECRET_KEY=${REPLIZ_SECRET_KEY:-}
+      - REPLIZ_BASE_URL=${REPLIZ_BASE_URL:-}
+      - REPLIZ_APPROVAL_SIGNING_KEY=${REPLIZ_APPROVAL_SIGNING_KEY:-}
       # Required for the built-in dashboard login page. The --require-auth flag
       # below engages Hermes' auth gate on the loopback reverse-proxy backend;
       # the deployment workflow fails closed when either credential is missing.
