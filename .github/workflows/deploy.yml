@@ -18,13 +18,17 @@ jobs:
           EXCITECH_GATEWAY_API_URL: ${{ secrets.EXCITECH_GATEWAY_API_URL }}
           HERMES_DASHBOARD_BASIC_AUTH_USERNAME: ${{ secrets.HERMES_DASHBOARD_BASIC_AUTH_USERNAME }}
           HERMES_DASHBOARD_BASIC_AUTH_PASSWORD: ${{ secrets.HERMES_DASHBOARD_BASIC_AUTH_PASSWORD }}
+          REPLIZ_ACCESS_KEY: ${{ secrets.REPLIZ_ACCESS_KEY }}
+          REPLIZ_SECRET_KEY: ${{ secrets.REPLIZ_SECRET_KEY }}
+          REPLIZ_BASE_URL: ${{ secrets.REPLIZ_BASE_URL }}
+          REPLIZ_APPROVAL_SIGNING_KEY: ${{ secrets.REPLIZ_APPROVAL_SIGNING_KEY }}
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SERVER_PORT || '22' }}
           command_timeout: 15m
-          envs: EXCITECH_GATEWAY_API_KEY,EXCITECH_GATEWAY_API_URL,HERMES_DASHBOARD_BASIC_AUTH_USERNAME,HERMES_DASHBOARD_BASIC_AUTH_PASSWORD
+          envs: EXCITECH_GATEWAY_API_KEY,EXCITECH_GATEWAY_API_URL,HERMES_DASHBOARD_BASIC_AUTH_USERNAME,HERMES_DASHBOARD_BASIC_AUTH_PASSWORD,REPLIZ_ACCESS_KEY,REPLIZ_SECRET_KEY,REPLIZ_BASE_URL,REPLIZ_APPROVAL_SIGNING_KEY
           script: |
             set -e
             echo "🚀 Starting Hermes Agent Auto-Deployment (Docker Mode)..."
@@ -60,6 +64,18 @@ jobs:
             fi
             if [ -z "${HERMES_DASHBOARD_BASIC_AUTH_PASSWORD:-}" ]; then
               unset HERMES_DASHBOARD_BASIC_AUTH_PASSWORD
+            fi
+            if [ -z "${REPLIZ_ACCESS_KEY:-}" ]; then
+              unset REPLIZ_ACCESS_KEY
+            fi
+            if [ -z "${REPLIZ_SECRET_KEY:-}" ]; then
+              unset REPLIZ_SECRET_KEY
+            fi
+            if [ -z "${REPLIZ_BASE_URL:-}" ]; then
+              unset REPLIZ_BASE_URL
+            fi
+            if [ -z "${REPLIZ_APPROVAL_SIGNING_KEY:-}" ]; then
+              unset REPLIZ_APPROVAL_SIGNING_KEY
             fi
 
             # docker compose also reads PROJECT_DIR/.env. Do not print or
