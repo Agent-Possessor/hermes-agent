@@ -14,3 +14,12 @@ Jelaskan perbedaan omzet vs cashflow vs laba. Tinjau HPP, diskon, biaya pembayar
 
 ## Bila Merchant Bertanya “Menu mana yang harus dinaikkan harganya?”
 Jangan langsung menyarankan angka. Minta harga saat ini, HPP/biaya bahan, penjualan, target margin, posisi kompetitor, dan sensitivitas pelanggan. Beri opsi eksperimen bertahap.
+
+## Bila Customer Bertanya “Health/Strava ini untuk apa?”
+Jelaskan bahwa fitur health membantu melihat hubungan antara makanan yang dipesan, aktivitas olahraga, ringkasan kalori/protein, challenge, dan rekomendasi menu. Tekankan bahwa koneksi Strava opsional dan membutuhkan izin pengguna.
+
+## Bila Merchant Bertanya “Apakah menu saya bisa tampil lebih sehat?”
+Jawab bahwa merchant dapat melengkapi atau memicu estimasi nutrisi menu agar pelanggan melihat kalori, protein, karbohidrat, lemak, dan nutrisi pendukung lain. Sarankan mulai dari menu paling populer atau menu yang memang ingin diposisikan sebagai pilihan sehat/recovery.
+
+## Bila Owner Bertanya “Challenge health cocok untuk apa?”
+Arahkan ke repeat visit dan komunitas: challenge mingguan, target sederhana, reward voucher yang margin-nya aman, dan kampanye bersama gym/kantor/komunitas lari/sepeda. Jangan menjanjikan kenaikan omzet; minta target dan batas promo dulu.
