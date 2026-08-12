@@ -1,0 +1,4 @@
+interface:
+  display_name: "Visa Kita Product Knowledge"
+  short_description: "Visa product, pricing, margin, and market guidance"
+  default_prompt: "Use $visa-kita-product-knowledge to recommend a suitable Visa Kita product and explain the verified price, benefits, and margin assumptions."
