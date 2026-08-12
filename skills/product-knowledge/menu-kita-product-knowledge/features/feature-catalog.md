@@ -63,3 +63,24 @@ Penting: laporan adalah alat keputusan, bukan pengganti akuntan atau penasihat p
 ## 13. Insight, Marketing, dan Growth
 **Apa yang dilakukan:** menyediakan kerangka untuk membaca data, menjalankan eksperimen pertumbuhan, konten lokal, akuisisi merchant, dan retensi.  
 **Nilai:** pertumbuhan dibuat lebih terukur: tahu target, hipotesis, metrik, dan tindak lanjut.
+
+## 14. Health, Nutrisi Menu, dan Rekomendasi Sehat
+**Apa yang dilakukan:** menambahkan konteks nutrisi pada menu seperti kalori, protein, karbohidrat, lemak, serat, gula, dan sodium; menampilkan status nutrisi pada detail menu; serta membangun rekomendasi menu/shop/voucher berdasarkan ringkasan harian, profil health, dan konteks aktivitas.  
+**Masalah:** pelanggan yang peduli kalori/protein harus menebak sendiri, sementara merchant tidak punya permukaan data untuk memosisikan menu sehat atau recovery meal.  
+**Nilai:** pelanggan dapat membuat pilihan yang lebih informasional, dan merchant bisa memakai data nutrisi sebagai bahan edukasi, rekomendasi, bundle, dan kampanye.
+
+Catatan status: nutrisi dapat diisi manual oleh role merchant yang berwenang atau diprime otomatis melalui job autofill. Estimasi otomatis membandingkan konteks menu/material dengan AI gateway dan Calories Ninja bila konfigurasi tersedia. Jangan menyebut hasil nutrisi sebagai nasihat medis atau angka laboratorium.
+
+## 15. Strava, Aktivitas, Workout, dan Ringkasan Harian
+**Apa yang dilakukan:** customer dapat menghubungkan akun Strava, melakukan sync aktivitas, melihat status koneksi, aktivitas terbaru, detail/stream aktivitas, dan ringkasan harian yang menggabungkan kalori masuk dari order dengan kalori keluar dari aktivitas. Aplikasi juga memiliki workout internal untuk run, ride, dan gym yang dapat disimpan sebagai aktivitas.  
+**Masalah:** pengalaman order makanan biasanya terpisah dari konteks olahraga, sehingga rekomendasi setelah workout dan progress harian sulit dibuat.  
+**Nilai:** Menu Kita bisa memberi pengalaman “eat smarter after activity”: pelanggan melihat keseimbangan kalori/protein dan merchant bisa hadir di momen setelah olahraga.
+
+Catatan status: integrasi Strava bergantung pada OAuth, token, scope, webhook/subscription, dan konfigurasi environment. UI frontend memiliki fallback mock untuk dev/local, jadi jangan klaim data live Strava tersedia untuk semua pengguna tanpa konfirmasi.
+
+## 16. Challenge Health dan Reward Merchant
+**Apa yang dilakukan:** menyediakan challenge mingguan/customer dan challenge merchant yang bisa dikaitkan dengan target nutrisi/aktivitas/konsistensi serta reward seperti voucher, badge, atau poin. Merchant dapat membuat challenge sponsor dengan shop, voucher, target, periode, dan auto-join.  
+**Masalah:** promo biasa sering transaksional dan kurang membangun kebiasaan.  
+**Nilai:** challenge memberi alasan pelanggan kembali, terutama untuk komunitas olahraga, gym, kantor, sekolah, atau segmen health-conscious.
+
+Gunakan bahasa: “Challenge membantu mengemas promo sebagai kebiasaan dan engagement, bukan sekadar diskon.”
