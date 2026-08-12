@@ -41,3 +41,21 @@
 3. Jalankan satu eksperimen promo/konten/referral.
 4. Lacak sumber dan hasil.
 5. Evaluasi, perbaiki, atau hentikan eksperimen.
+
+## F. Customer Health Journey
+1. Pelanggan membuka area health dan menghubungkan Strava bila ingin memakai data aktivitas.
+2. Pelanggan melakukan sync aktivitas atau menyimpan workout internal seperti run, ride, atau gym.
+3. Sistem menampilkan ringkasan harian: kalori masuk dari order, kalori keluar dari aktivitas, net calories, protein, dan history.
+4. Pelanggan melihat challenge, progress, activity feed, dan rekomendasi menu/shop/voucher yang relevan.
+5. Setelah checkout atau workout, rekomendasi dapat diarahkan ke menu yang lebih sesuai konteks, misalnya protein/recovery meal.
+
+**Momen penting:** izin Strava harus jelas, data bisa partial, dan angka nutrisi harus diposisikan sebagai panduan informasional.
+
+## G. Merchant Health Campaign Journey
+1. Merchant memastikan menu utama memiliki data nutrisi atau memicu autofill untuk menu yang relevan.
+2. Merchant membuat challenge dengan shop sponsor, target, periode, dan reward voucher.
+3. Pelanggan ikut challenge dan progress dipantau dari summary health.
+4. Merchant memakai challenge untuk membangun komunitas, repeat visit, dan positioning menu sehat.
+5. Evaluasi dilakukan dari penggunaan voucher, repeat order, dan engagement challenge.
+
+**Momen penting:** jangan membuat challenge terlalu kompleks; mulai dari target sederhana, periode pendek, dan reward yang margin-nya aman.
