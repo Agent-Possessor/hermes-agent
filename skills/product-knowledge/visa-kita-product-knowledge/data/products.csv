@@ -1,0 +1,17 @@
+sku,visa_code,product_family,purpose,internal_retail_idr,status,source_id
+C2,C2,single-entry,business,4000000,needs-approval,INT-PL
+C11,C11,single-entry,product-promotion,4000000,needs-approval,INT-PL
+C17,C17,single-entry,audit-qc-inspection,5000000,needs-approval,INT-PL
+C18,C18,single-entry,trial-work-capability,5000000,needs-approval,INT-PL
+C19,C19,single-entry,after-sales,5000000,needs-approval,INT-PL
+C20,C20,single-entry,machine-install-repair,5000000,needs-approval,INT-PL
+C22B,C22B,single-entry,company-internship,6000000,needs-approval,INT-PL
+D2-1Y,D2,multiple-entry,business-1-year,6000000,needs-approval,INT-PL
+D2-2Y,D2,multiple-entry,business-2-year,8500000,needs-approval,INT-PL
+D2-5Y,D2,multiple-entry,business-5-year,12000000,needs-approval,INT-PL
+D17-1Y,D17,multiple-entry,audit-qc-1-year,7000000,needs-approval,INT-PL
+D17-2Y,D17,multiple-entry,audit-qc-2-year,8000000,needs-approval,INT-PL
+E23-1Y,E23,temporary-stay,work-1-year,13000000,needs-approval,INT-PL
+E28A-1Y,E28A,temporary-stay,investor-1-year,13000000,needs-approval,INT-PL
+E31B-1Y,E31B,temporary-stay,dependent-spouse-1-year,11000000,needs-approval,INT-PL
+E31E-1Y,E31E,temporary-stay,dependent-child-1-year,11000000,needs-approval,INT-PL

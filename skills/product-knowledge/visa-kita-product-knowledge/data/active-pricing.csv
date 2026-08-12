@@ -1,0 +1,6 @@
+sku,name,price_idr,status,effective_date,expiry_date,approver,source_id
+B1-SAVER,B1 VOA e-VOA Smart Saver,950000,draft,,,,INT-MODEL
+B1-FAST,B1 VOA e-VOA Fast Track,1250000,draft,,,,INT-MODEL
+B1-BIZ,B1 VOA e-VOA Business Premium,1650000,draft,,,,INT-MODEL
+B1-EXT,B1 VOA e-VOA Extension,950000,draft,,,,INT-MODEL
+B1-GROUP-5,B1 VOA e-VOA Group Five,5500000,draft,,,,INT-MODEL

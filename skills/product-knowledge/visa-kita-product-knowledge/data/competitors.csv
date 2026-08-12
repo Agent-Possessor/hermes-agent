@@ -1,0 +1,8 @@
+provider,offer,total_price_idr,government_fee_idr,observed_date,source_id
+Immigration,B1-direct,500000,500000,2026-08-12,OFF-B1
+VFS,B1-assisted,730000,500000,2026-08-12,COMP-VFS
+Flado,B1-assisted,800000,500000,2026-08-12,COMP-FLADO
+Flado,B1-extension-bali-standard,800000,500000,2026-08-12,COMP-FLADO
+Visas-Indonesia,B-type-assisted,900000,500000,2026-08-12,COMP-VISAS-ID
+Visas-Indonesia,B-extension-low,1050000,500000,2026-08-12,COMP-VISAS-ID
+Visas-Indonesia,B-extension-high,1350000,500000,2026-08-12,COMP-VISAS-ID

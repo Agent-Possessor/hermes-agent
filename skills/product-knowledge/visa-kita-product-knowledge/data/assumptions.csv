@@ -1,0 +1,7 @@
+assumption,value,status,source_id,validation_needed
+Australia CPL USD,6,unvalidated,INT-MODEL,Run country-channel pilot
+Lead-to-paid conversion,0.30,unvalidated,INT-MODEL,Measure eligible cohort
+eSIM conversion lift,0.25,unsupported,INT-MODEL,Controlled experiment
+Extension attach rate,0.40,unsupported,INT-MODEL,Track eligible purchasers
+Australia-EU-US share,0.80,unsupported,INT-MODEL,Define denominator and source
+Fast Track government processing minutes,60,unsupported,INT-MODEL,Operational and authority evidence

@@ -1,0 +1,10 @@
+benefit,status,package,source_id,notes
+document-review,planned,B1-SAVER,INT-MODEL,Define checklist and operations
+levy-guidance,planned,B1-SAVER,INT-MODEL,Do not confuse with free arrival declaration
+levy-included,unverified,B1-FAST,INT-MODEL,Confirm payment and refund workflow
+esim-1gb,partner-dependent,B1-FAST,INT-MODEL,No partner documented
+express-processing,unverified,B1-FAST,INT-MODEL,No government SLA control
+company-invoice,planned,B1-BIZ,INT-MODEL,Confirm workflow and tax treatment
+paypal-unionpay-russian-cards,unverified,B1-BIZ,INT-MODEL,Test before advertising
+passport-pickup,unverified,B1-EXT,INT-MODEL,Requires chain of custody
+group-dashboard,unverified,B1-GROUP-5,INT-MODEL,No operational evidence
