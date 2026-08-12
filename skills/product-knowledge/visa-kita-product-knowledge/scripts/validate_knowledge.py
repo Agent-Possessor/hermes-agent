@@ -13,6 +13,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 VALID_PRICE = {"draft", "active", "retired", "needs-approval"}
 VALID_BENEFIT = {"confirmed", "partner-dependent", "planned", "unverified", "retired"}
+NON_PORTABLE_MARKERS = (
+    "." + "extra/",
+    "/" + "Users/",
+    "~" + "/",
+    "$" + "HOME",
+    "${" + "HOME}",
+)
 
 
 def rows(name: str) -> list[dict[str, str]]:
@@ -45,6 +52,18 @@ def main() -> None:
 
     source_text = (ROOT / "references" / "source-register.md").read_text(encoding="utf-8")
     known_sources = set(re.findall(r"\| ([A-Z][A-Z0-9-]+) \|", source_text))
+    for line in source_text.splitlines():
+        if line.startswith("| INT-"):
+            bundled_and_origin = re.findall(r"`([^`]+)`", line)
+            for bundled in bundled_and_origin[:-1]:
+                if "/" in bundled and not (ROOT / bundled).is_file():
+                    errors.append(f"missing bundled runtime source: {bundled}")
+    for path in ROOT.rglob("*"):
+        if path.is_file() and path.suffix.lower() in {".md", ".csv", ".json", ".yaml", ".yml", ".py"}:
+            text = path.read_text(encoding="utf-8")
+            for marker in NON_PORTABLE_MARKERS:
+                if marker in text:
+                    errors.append(f"non-portable path marker {marker!r} in {path.relative_to(ROOT)}")
     for filename in ("products.csv", "active-pricing.csv", "unit-costs.csv", "benefits.csv", "competitors.csv", "assumptions.csv"):
         for row in rows(filename):
             source = row.get("source_id", "")
