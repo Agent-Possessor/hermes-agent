@@ -105,3 +105,9 @@
 ## `menu-kita-voucher-manage`
 **Purpose:** Use when a Menu Kita user wants to create, edit, activate, deactivate, or review voucher changes. Always create an approval proposal before writing voucher data to Supabase.
 
+## `menu-kita-health-nutrition`
+**Purpose:** Use when a Menu Kita user asks about health dashboard, nutrisi menu, kalori/protein, rekomendasi sehat, food intake, Strava, workout, routes, clubs, atau challenge health.
+
+**When relevant:** - Customer asks how health summary, Strava sync, activity feed, workout run/ride/gym, or recommendations work. - Merchant asks how nutrition data appears on menu detail. - Merchant asks to create a health challenge with voucher reward. - Team asks how Menu Kita can support gym/community/healthy food positioning.
+
+**Safe framing:** Treat nutrition as informational estimates; Strava depends on OAuth/configuration; health recommendations are product guidance, not medical advice.
